@@ -100,11 +100,20 @@ onde os dados vieram.
 
 - **GitHub Actions** (`.github/workflows/ci.yml`): roda formatação, lint,
   typecheck, testes e build em cada push/PR para `main`.
-- **Deploy**: configurado para Netlify via `netlify.toml` (`npm run build`,
+- **Deploy no Netlify**: configurado via `netlify.toml` (`npm run build`,
   publica `dist/`). Não são necessárias variáveis de ambiente secretas — os
   arquivos de divulgação do TSE são públicos e não exigem autenticação
   (segundo as fontes consultadas; não confirmado de forma explícita e
   documental — ver seção acima).
+- **Deploy no GitHub Pages** (alternativa): workflow
+  `.github/workflows/deploy-pages.yml`, builda com `BASE_PATH=/apuracao-eleicoes/`
+  (necessário porque uma página de projeto do GitHub Pages é servida em
+  `usuario.github.io/repositorio/`, não na raiz do domínio — diferente do
+  Netlify) e publica via Actions. **Passo manual único**, feito uma vez pelo
+  dono do repositório: em Settings → Pages, em "Build and deployment" →
+  "Source", selecionar **GitHub Actions** (não "Deploy from a branch"). Depois
+  disso, todo push em `main` publica automaticamente em
+  `https://andrescultori.github.io/apuracao-eleicoes/`.
 
 ## Licença
 
