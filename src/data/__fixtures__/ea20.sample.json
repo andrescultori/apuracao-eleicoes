@@ -1,0 +1,59 @@
+{
+  "ele": 6257,
+  "t": 1,
+  "dg": "04/10/2026",
+  "hg": "20:00:00",
+  "idg": 42,
+  "carg": [
+    {
+      "cd": "0001",
+      "v": { "tv": 1000, "vv": 950 },
+      "agr": [
+        {
+          "n": 1,
+          "nm": "Agrupamento A",
+          "tp": "i",
+          "par": [
+            {
+              "n": 10,
+              "sg": "ABC",
+              "nm": "Partido ABC",
+              "cand": [
+                {
+                  "n": "10",
+                  "sqcand": 1001,
+                  "nm": "Candidato Um",
+                  "nmu": "Cand. Um",
+                  "vap": 600,
+                  "pvapn": 63.16
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "n": 2,
+          "nm": "Agrupamento B",
+          "tp": "i",
+          "par": [
+            {
+              "n": 20,
+              "sg": "XYZ",
+              "nm": "Partido XYZ",
+              "cand": [
+                {
+                  "n": "20",
+                  "sqcand": 1002,
+                  "nm": "Candidato Dois",
+                  "nmu": "Cand. Dois",
+                  "vap": 350,
+                  "pvapn": 36.84
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
