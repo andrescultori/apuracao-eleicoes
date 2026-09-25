@@ -1,20 +1,1412 @@
-<!doctype html>
-<html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Apuração 2026 — acompanhamento dos resultados eleitorais em tempo real." />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&family=Inter+Tight:wght@600;700;800&display=swap"
-    />
-    <title>Apuração 2026</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
-</html>
+<title>Apuração 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&family=Inter+Tight:wght@600;700;800&display=swap">
+<style>
+  :root{
+    --bg:#F4F5F8;
+    --surface:#FFFFFF;
+    --surface-2:#EDEFF3;
+    --border:#E1E4EA;
+    --border-strong:#CBD1DB;
+    --text:#161A22;
+    --text-2:#565F6E;
+    --text-3:#8991A0;
+    --accent:#1F4FB0;
+    --accent-hover:#163C8C;
+    --accent-soft:#E7EEFC;
+    --positive:#15804F;
+    --positive-soft:#E3F5EC;
+    --negative:#C23B3B;
+    --negative-soft:#FBEAEA;
+    --favorite:#9C6B0C;
+    --favorite-soft:#FBF1DD;
+    --chart-1:#1F4FB0;
+    --chart-2:#0E8F82;
+    --chart-3:#7C4DE0;
+    --chart-4:#B5690A;
+    --chart-5:#5B6472;
+    --shadow:0 1px 2px rgba(20,24,31,.06),0 2px 8px rgba(20,24,31,.05);
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#0D1015;
+      --surface:#161A21;
+      --surface-2:#1C212A;
+      --border:#2A303B;
+      --border-strong:#39414E;
+      --text:#E8EAEE;
+      --text-2:#A2AAB7;
+      --text-3:#727C8A;
+      --accent:#6E98F1;
+      --accent-hover:#8FB0F5;
+      --accent-soft:#1A2740;
+      --positive:#4FCB8C;
+      --positive-soft:#123324;
+      --negative:#E5807E;
+      --negative-soft:#3A1E1D;
+      --favorite:#E0B356;
+      --favorite-soft:#392D14;
+      --chart-1:#6E98F1;
+      --chart-2:#3FC2B4;
+      --chart-3:#A98BF0;
+      --chart-4:#E0A24C;
+      --chart-5:#9AA3B2;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 2px 10px rgba(0,0,0,.35);
+      color-scheme:dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0D1015;
+    --surface:#161A21;
+    --surface-2:#1C212A;
+    --border:#2A303B;
+    --border-strong:#39414E;
+    --text:#E8EAEE;
+    --text-2:#A2AAB7;
+    --text-3:#727C8A;
+    --accent:#6E98F1;
+    --accent-hover:#8FB0F5;
+    --accent-soft:#1A2740;
+    --positive:#4FCB8C;
+    --positive-soft:#123324;
+    --negative:#E5807E;
+    --negative-soft:#3A1E1D;
+    --favorite:#E0B356;
+    --favorite-soft:#392D14;
+    --chart-1:#6E98F1;
+    --chart-2:#3FC2B4;
+    --chart-3:#A98BF0;
+    --chart-4:#E0A24C;
+    --chart-5:#9AA3B2;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 2px 10px rgba(0,0,0,.35);
+    color-scheme:dark;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+    padding-inline:0;
+  }
+  h1,h2,h3,h4{font-family:"Inter Tight","Inter",system-ui,sans-serif; text-wrap:balance; margin:0;}
+  .num{font-variant-numeric:tabular-nums;}
+  button{font-family:inherit;}
+  a{color:var(--accent);}
+
+  .shell{max-width:1180px;margin:0 auto;padding-inline:20px;}
+  @media (max-width:640px){ .shell{padding-inline:14px;} }
+
+  /* header */
+  .topbar{
+    position:sticky; top:env(safe-area-inset-top,0px); z-index:40;
+    background:var(--surface); border-bottom:1px solid var(--border);
+  }
+  .topbar-inner{display:flex; align-items:center; justify-content:space-between; gap:16px; padding-block:14px;}
+  .brand{display:flex; align-items:center; gap:10px; min-width:0;}
+  .brand-mark{
+    width:34px;height:34px;border-radius:8px;background:var(--accent);
+    display:flex;align-items:center;justify-content:center;flex:none;
+  }
+  .brand-mark svg{width:18px;height:18px;}
+  .brand-text h1{font-size:17px;font-weight:800;letter-spacing:-.01em;line-height:1.1;}
+  .brand-text p{margin:2px 0 0;font-size:12px;color:var(--text-2);}
+  .topbar-actions{display:flex;align-items:center;gap:8px;flex:none;}
+  .status-pill{
+    display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2);
+    padding:5px 10px;border-radius:999px;background:var(--surface-2);white-space:nowrap;
+  }
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--positive);flex:none;}
+  .dot.err{background:var(--negative);}
+  .dot.pulse{animation:pulse 1.8s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .icon-btn{
+    width:34px;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--surface);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-2);flex:none;
+  }
+  .icon-btn:hover{background:var(--surface-2);color:var(--text);}
+  .icon-btn:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible, [tabindex]:focus-visible{
+    outline:2px solid var(--accent); outline-offset:2px;
+  }
+  .icon-btn svg{width:17px;height:17px;}
+
+  /* demo banner */
+  .demo-banner{
+    background:var(--favorite-soft); border-bottom:1px solid var(--border);
+    color:var(--favorite); font-size:12.5px; font-weight:600;
+    padding-block:7px; display:flex; justify-content:center; text-align:center;
+  }
+  .demo-banner .shell{display:flex; align-items:center; justify-content:center; gap:8px; padding-block:0;}
+
+  .error-banner{
+    background:var(--negative-soft); color:var(--negative); border-bottom:1px solid var(--border);
+    font-size:12.5px; font-weight:600; padding-block:7px; text-align:center;
+  }
+
+  /* nav */
+  .nav-wrap{background:var(--surface); border-bottom:1px solid var(--border); overflow-x:auto; scrollbar-width:thin;}
+  .nav{display:flex; gap:4px; padding-block:8px; width:max-content; min-width:100%;}
+  .nav-item{
+    border:none;background:transparent;color:var(--text-2);font-size:13.5px;font-weight:600;
+    padding:8px 13px;border-radius:8px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px;
+  }
+  .nav-item:hover{background:var(--surface-2); color:var(--text);}
+  .nav-item[aria-selected="true"]{background:var(--accent-soft); color:var(--accent);}
+  .nav-badge{
+    background:var(--favorite); color:#fff; border-radius:999px; font-size:10.5px; font-weight:700;
+    padding:1px 6px; line-height:1.4;
+  }
+
+  main{padding-block:20px 56px;}
+  .stack{display:flex;flex-direction:column;gap:18px;}
+
+  /* filter bar */
+  .filters{
+    display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+    background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px; box-shadow:var(--shadow);
+  }
+  .seg{display:flex; background:var(--surface-2); border-radius:9px; padding:3px; gap:2px;}
+  .seg button{
+    border:none;background:transparent;color:var(--text-2);font-size:13px;font-weight:600;
+    padding:7px 12px;border-radius:7px;cursor:pointer;
+  }
+  .seg button[aria-pressed="true"]{background:var(--surface); color:var(--accent); box-shadow:var(--shadow);}
+  .field{display:flex; flex-direction:column; gap:4px;}
+  .field label{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-3);}
+  select.ui, .search-input{
+    border:1px solid var(--border-strong); background:var(--surface); color:var(--text);
+    border-radius:8px; padding:8px 10px; font-size:13.5px; min-width:0;
+  }
+  .search-wrap{position:relative; flex:1 1 220px; min-width:180px;}
+  .search-wrap svg{position:absolute; left:9px; top:50%; transform:translateY(-50%); width:15px;height:15px; color:var(--text-3);}
+  .search-input{width:100%; padding-left:30px;}
+  .grow{flex:1 1 auto;}
+
+  /* summary cards */
+  .summary-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:10px;}
+  @media (max-width:760px){ .summary-grid{grid-template-columns:repeat(2,1fr);} }
+  .card{
+    background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 15px; box-shadow:var(--shadow);
+  }
+  .card .label{font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-3);}
+  .card .value{font-size:24px; font-weight:800; letter-spacing:-.02em; margin-top:5px;}
+  .card .value small{font-size:13px; font-weight:600; color:var(--text-2);}
+  .progress-track{height:5px;border-radius:99px;background:var(--surface-2);margin-top:9px;overflow:hidden;}
+  .progress-fill{height:100%;background:var(--accent);border-radius:99px;transition:width .4s ease;}
+
+  /* update control row */
+  .update-row{
+    display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px;
+    background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:11px 14px; box-shadow:var(--shadow);
+    font-size:13px;
+  }
+  .update-left{display:flex; align-items:center; gap:8px; color:var(--text-2);}
+  .status-tag{
+    font-weight:700; font-size:12px; padding:4px 10px; border-radius:999px;
+    background:var(--accent-soft); color:var(--accent);
+  }
+  .status-tag.final{background:var(--positive-soft); color:var(--positive);}
+  .status-tag.wait{background:var(--surface-2); color:var(--text-2);}
+  .toggle{
+    display:inline-flex; align-items:center; gap:7px; cursor:pointer; user-select:none; color:var(--text-2); font-weight:600;
+  }
+  .switch{
+    width:34px; height:19px; border-radius:99px; background:var(--surface-2); border:1px solid var(--border-strong);
+    position:relative; flex:none; transition:background .15s;
+  }
+  .switch.on{background:var(--accent); border-color:var(--accent);}
+  .switch::after{
+    content:""; position:absolute; top:1px; left:1px; width:15px; height:15px; border-radius:50%;
+    background:#fff; transition:transform .15s; box-shadow:0 1px 2px rgba(0,0,0,.3);
+  }
+  .switch.on::after{transform:translateX(15px);}
+  .btn{
+    border:1px solid var(--border-strong); background:var(--surface); color:var(--text); font-weight:600; font-size:13px;
+    padding:8px 13px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;
+  }
+  .btn:hover{background:var(--surface-2);}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .btn.primary:hover{background:var(--accent-hover);}
+  .btn svg{width:14px;height:14px;}
+
+  /* section headers */
+  .section-head{display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:10px;}
+  .section-head h2{font-size:15px; font-weight:700;}
+  .section-head .muted{font-size:12px; color:var(--text-3);}
+
+  /* favorites */
+  .fav-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px;}
+  .fav-card{
+    background:var(--favorite-soft); border:1px solid var(--border); border-left:3px solid var(--favorite);
+    border-radius:10px; padding:11px 13px; display:flex; flex-direction:column; gap:3px;
+  }
+  .fav-card .fav-name{font-weight:700; font-size:13.5px; display:flex; align-items:center; gap:6px;}
+  .fav-card .fav-meta{font-size:11.5px; color:var(--text-2);}
+  .fav-card .fav-stats{font-size:12.5px; font-weight:600; margin-top:3px;}
+  .fav-card .fav-remove{align-self:flex-start; margin-top:6px; font-size:11.5px; color:var(--negative); background:none; border:none; cursor:pointer; font-weight:600; padding:0;}
+
+  /* table */
+  .table-card{background:var(--surface); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow); overflow:hidden;}
+  .table-scroll{overflow-x:auto;}
+  table.results{width:100%; border-collapse:collapse; min-width:640px;}
+  table.results th{
+    text-align:left; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-3);
+    padding:10px 12px; border-bottom:1px solid var(--border); background:var(--surface-2); position:sticky; top:0;
+  }
+  table.results td{padding:10px 12px; border-bottom:1px solid var(--border); font-size:13.5px; vertical-align:middle;}
+  table.results tbody tr:last-child td{border-bottom:none;}
+  table.results tbody tr.is-fav{background:var(--favorite-soft);}
+  table.results tbody tr:hover{background:var(--surface-2);}
+  .th-num, .td-num{text-align:right; font-variant-numeric:tabular-nums;}
+  .star-btn{background:none; border:none; cursor:pointer; font-size:18px; line-height:1; color:var(--text-3); padding:2px 4px; border-radius:6px;}
+  .star-btn.active{color:var(--favorite);}
+  .star-btn:hover{background:var(--surface-2);}
+  .pos-cell{display:flex; align-items:center; gap:6px; font-weight:700;}
+  .cand-name{font-weight:600;}
+  .cand-ballot{font-size:11.5px; color:var(--text-3);}
+  .party-chip{
+    font-size:11px; font-weight:700; padding:2px 7px; border-radius:6px; background:var(--surface-2); color:var(--text-2);
+    display:inline-block;
+  }
+  .delta{font-size:11px; margin-top:2px;}
+  .delta.up{color:var(--positive);}
+  .delta.down{color:var(--negative);}
+  .delta.flat{color:var(--text-3);}
+  .empty-note{padding:26px 16px; text-align:center; color:var(--text-2); font-size:13.5px;}
+
+  /* mobile cards for table */
+  @media (max-width:680px){
+    table.results, table.results thead, table.results tbody, table.results th, table.results td, table.results tr{display:block;}
+    table.results thead{display:none;}
+    table.results tr{border-bottom:1px solid var(--border); padding:11px 12px;}
+    table.results tr.is-fav{border-left:3px solid var(--favorite);}
+    table.results td{border:none; padding:3px 0; display:flex; justify-content:space-between; gap:10px; align-items:center;}
+    table.results td[data-label]::before{
+      content: attr(data-label); font-size:10.5px; font-weight:700; text-transform:uppercase; color:var(--text-3); letter-spacing:.03em;
+    }
+    table.results td.cand-cell::before{content:none;}
+    .table-scroll{overflow-x:visible;}
+    table.results{min-width:0;}
+  }
+
+  /* chart bars */
+  .chart-card{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; box-shadow:var(--shadow);}
+  .bar-row{display:flex; align-items:center; gap:10px; margin-bottom:9px;}
+  .bar-row:last-child{margin-bottom:0;}
+  .bar-label{width:150px; flex:none; font-size:12.5px; font-weight:600; display:flex; align-items:center; gap:5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .bar-track{flex:1; height:16px; background:var(--surface-2); border-radius:5px; overflow:hidden;}
+  .bar-fill{height:100%; background:var(--chart-1); border-radius:5px; transition:width .4s ease;}
+  .bar-fill.fav{background:var(--favorite);}
+  .bar-pct{width:58px; flex:none; text-align:right; font-size:12.5px; font-weight:700; font-variant-numeric:tabular-nums;}
+
+  /* evolution */
+  .legend{display:flex; flex-wrap:wrap; gap:12px; margin-top:10px;}
+  .legend-item{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-2);}
+  .legend-dot{width:9px; height:9px; border-radius:50%; flex:none;}
+  .chart-svg text{font-family:"Inter",sans-serif;}
+
+  /* overview */
+  .overview-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px;}
+  .overview-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:15px; box-shadow:var(--shadow);
+    cursor:pointer; text-align:left; display:flex; flex-direction:column; gap:8px;
+  }
+  .overview-card:hover{border-color:var(--border-strong); transform:translateY(-1px);}
+  .overview-card .office-name{font-size:13px; font-weight:700; color:var(--text-2);}
+  .overview-card .leader-pct{font-size:26px; font-weight:800; letter-spacing:-.02em;}
+  .overview-card .leader-name{font-size:13px; color:var(--text-2); font-weight:600;}
+  .overview-card .office-status{font-size:11px; color:var(--text-3); margin-top:auto;}
+
+  /* about page */
+  .prose{max-width:680px; font-size:14px; line-height:1.65; color:var(--text-2);}
+  .prose h2{font-size:16px; color:var(--text); margin-top:22px; margin-bottom:8px;}
+  .prose h2:first-child{margin-top:0;}
+  .prose p{margin:0 0 10px;}
+  .kv{display:grid; grid-template-columns:auto 1fr; gap:6px 14px; font-size:13px; margin-top:6px;}
+  .kv dt{color:var(--text-3); font-weight:600;}
+  .kv dd{margin:0; color:var(--text);}
+  .notice{
+    background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:12px 14px; font-size:13px;
+    color:var(--text-2); margin-top:10px;
+  }
+
+  /* empty state */
+  .empty-state{
+    background:var(--surface); border:1px dashed var(--border-strong); border-radius:12px; padding:36px 20px;
+    text-align:center; display:flex; flex-direction:column; align-items:center; gap:12px;
+  }
+  .empty-state p{color:var(--text-2); font-size:13.5px; max-width:320px;}
+
+  /* settings modal */
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(10,12,16,.45); z-index:60; display:flex; align-items:flex-end; justify-content:center;
+  }
+  @media (min-width:640px){ .modal-backdrop{align-items:center;} }
+  .modal{
+    background:var(--surface); border:1px solid var(--border); width:100%; max-width:420px; border-radius:14px 14px 0 0;
+    padding:18px; box-shadow:var(--shadow); max-height:85vh; overflow-y:auto;
+  }
+  @media (min-width:640px){ .modal{border-radius:14px;} }
+  .modal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
+  .modal-head h3{font-size:15px; font-weight:700;}
+  .modal-section{margin-bottom:16px;}
+  .modal-section:last-child{margin-bottom:0;}
+  .modal-section > .label{font-size:11px; font-weight:700; text-transform:uppercase; color:var(--text-3); letter-spacing:.04em; margin-bottom:7px;}
+  .radio-row{display:flex; gap:6px; flex-wrap:wrap;}
+  .radio-row button{
+    border:1px solid var(--border-strong); background:var(--surface); color:var(--text); font-size:12.5px; font-weight:600;
+    padding:7px 11px; border-radius:8px; cursor:pointer;
+  }
+  .radio-row button[aria-pressed="true"]{background:var(--accent-soft); border-color:var(--accent); color:var(--accent);}
+  .modal-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding-block:6px;}
+  .modal-row .row-label{font-size:13px; font-weight:600;}
+  .modal-row .row-desc{font-size:11.5px; color:var(--text-3); margin-top:1px;}
+
+  /* footer */
+  footer{border-top:1px solid var(--border); margin-top:30px;}
+  .footer-inner{padding-block:20px 26px; display:flex; flex-direction:column; gap:10px;}
+  .footer-top{display:flex; flex-wrap:wrap; justify-content:space-between; gap:10px; align-items:baseline;}
+  .footer-top strong{font-size:13.5px;}
+  .footer-top span{font-size:12px; color:var(--text-3);}
+  footer p{font-size:12px; color:var(--text-3); margin:0;}
+  .footer-credit{font-size:11.5px; color:var(--text-3); padding-top:10px; border-top:1px solid var(--border); text-align:center;}
+  .footer-credit a{color:var(--text-2); font-weight:600; text-decoration:none;}
+  .footer-credit a:hover{text-decoration:underline;}
+
+  .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;}
+
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001ms !important; transition-duration:.001ms !important;}
+  }
+</style>
+
+<div id="app"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================= UTIL / RNG ============================= */
+function hashString(s){
+  var h = 2166136261;
+  for (var i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+function mulberry32(seed){
+  var a = seed >>> 0;
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    var t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function randFor(seedStr){ return mulberry32(hashString(seedStr))(); }
+function fmtInt(n){ return new Intl.NumberFormat('pt-BR').format(Math.max(0, Math.round(n))); }
+function fmtPct(n){ return n.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function letterSeq(n){
+  // 0 -> A, 1 -> B ... 25 -> Z, 26 -> AA ...
+  var s = "";
+  n = n + 1;
+  while (n > 0){
+    var rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+function clamp(n, lo, hi){ return Math.max(lo, Math.min(hi, n)); }
+function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+/* ============================= DOMAIN DATA ============================= */
+var UFS = [
+  {sigla:'AC',nome:'Acre',peso:0.6},{sigla:'AL',nome:'Alagoas',peso:2.4},{sigla:'AP',nome:'Amapá',peso:0.6},
+  {sigla:'AM',nome:'Amazonas',peso:2.6},{sigla:'BA',nome:'Bahia',peso:11.0},{sigla:'CE',nome:'Ceará',peso:7.0},
+  {sigla:'DF',nome:'Distrito Federal',peso:2.2},{sigla:'ES',nome:'Espírito Santo',peso:2.9},{sigla:'GO',nome:'Goiás',peso:4.8},
+  {sigla:'MA',nome:'Maranhão',peso:4.9},{sigla:'MT',nome:'Mato Grosso',peso:2.5},{sigla:'MS',nome:'Mato Grosso do Sul',peso:1.9},
+  {sigla:'MG',nome:'Minas Gerais',peso:16.0},{sigla:'PA',nome:'Pará',peso:5.9},{sigla:'PB',nome:'Paraíba',peso:3.0},
+  {sigla:'PR',nome:'Paraná',peso:8.3},{sigla:'PE',nome:'Pernambuco',peso:7.1},{sigla:'PI',nome:'Piauí',peso:2.5},
+  {sigla:'RJ',nome:'Rio de Janeiro',peso:12.9},{sigla:'RN',nome:'Rio Grande do Norte',peso:2.6},{sigla:'RS',nome:'Rio Grande do Sul',peso:8.7},
+  {sigla:'RO',nome:'Rondônia',peso:1.2},{sigla:'RR',nome:'Roraima',peso:0.4},{sigla:'SC',nome:'Santa Catarina',peso:5.9},
+  {sigla:'SP',nome:'São Paulo',peso:34.6},{sigla:'SE',nome:'Sergipe',peso:1.7},{sigla:'TO',nome:'Tocantins',peso:1.1}
+];
+var UF_MAP = {}; UFS.forEach(function(u){ UF_MAP[u.sigla] = u; });
+
+var PARTIES = ['ABC','XYZ','DEF','GHI','JKL','MNO','PQR','STU','VWX','LMN'];
+var PARTY_BASE = {}; PARTIES.forEach(function(p, i){ PARTY_BASE[p] = (i+1)*10; });
+
+var OFFICES = {
+  presidente:        {label:'Presidente',        short:'Presidente',  scope:'national', hasRunoff:true,  digits:2, countRange:[5,5]},
+  governador:        {label:'Governador',        short:'Governador',  scope:'uf',       hasRunoff:true,  digits:2, countRange:[4,6]},
+  senador:           {label:'Senador',           short:'Senador',     scope:'uf',       hasRunoff:false, digits:3, countRange:[4,7]},
+  deputadoFederal:   {label:'Deputado Federal',  short:'Dep. Federal',scope:'uf',       hasRunoff:false, digits:4, countRange:[14,22]},
+  deputadoEstadual:  {label:'Deputado Estadual', short:'Dep. Estadual',scope:'uf',      hasRunoff:false, digits:5, countRange:[18,28]}
+};
+var OFFICE_ORDER = ['presidente','governador','senador','deputadoFederal','deputadoEstadual'];
+
+var TURNOUT = 0.80;
+var VALID_RATIO = {presidente:0.91, governador:0.91, senador:0.91, deputadoFederal:0.83, deputadoEstadual:0.83};
+
+/* ============================= TSE DATA PROVIDER (dados oficiais) =============================
+   Camada real de integração com a divulgação de resultados do TSE.
+
+   Confirmado na documentação oficial (consultada em 25/09/2026) em
+   https://www.tse.jus.br/eleicoes/informacoes-tecnicas-sobre-a-divulgacao-de-resultados :
+
+     Ambiente oficial:   https://resultados.tse.jus.br        (parâmetro "oficial")
+     Ambiente simulado:  https://resultados-sim.tse.jus.br/simulado  (parâmetro "simulado2026")
+     Simulados agendados: 15–17/set, 22–24/set e 28–29/set de 2026.
+     Limite de acesso: 100 requisições por IP por segundo; excedentes geram bloqueio
+       de 10 min. Requisições 404 repetidas também podem gerar bloqueio temporário.
+     Arquivos JSON publicados (cada um com especificação própria em
+     tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados/):
+       EA10 — resultado de eleitos
+       EA11 — configuração de eleições      (equivale a getElectionData())
+       EA12 — configuração de municípios
+       EA14 — acompanhamento Brasil         (equivale a getResults() nacional)
+       EA15 — acompanhamento UF             (equivale a getResults() por UF)
+       EA16 — configuração de seções eleitorais
+       EA18 — auxiliar de seção
+       EA20 — resultado unificado           (equivale a getCandidates()/getResults() por corrida)
+     Códigos de eleição citados na audiência técnica: federal 6257, estadual 6259,
+     conselheiro distrital 6261 (conferir se seguem válidos para o pleito de 2026).
+
+   NÃO CONFIRMADO — e por isso NÃO implementado aqui: o padrão exato de path/URL de
+   cada arquivo (ex.: prefixos por UF/município, nome de arquivo, extensão .json vs
+   .jws) e o schema de campos de cada um. As páginas de especificação por arquivo
+   (links acima) e o "Manual de verificação dos arquivos JWS" trazem esses detalhes,
+   mas não puderam ser lidos por completo nesta sessão. Antes de preencher
+   TSE_CONFIG.buildPath() abaixo, confirme esses dados nas páginas oficiais —
+   nunca deduza ou copie um path de um pleito anterior sem checar se ele mudou.
+
+   Enquanto TSE_CONFIG.buildPath() não estiver implementado, o app permanece 100%
+   funcional no modo "mock" (dados fictícios) e o modo "tse" retorna, de forma
+   honesta, o estado "Dados indisponíveis" em vez de inventar resultados.
+================================================================================ */
+var TSE_CONFIG = {
+  hosts: {
+    oficial:  {base:'https://resultados.tse.jus.br',              env:'oficial'},
+    simulado: {base:'https://resultados-sim.tse.jus.br/simulado', env:'simulado2026'}
+  },
+  files: {
+    EA10:'resultado de eleitos', EA11:'configuração de eleições', EA12:'configuração de municípios',
+    EA14:'acompanhamento Brasil', EA15:'acompanhamento UF', EA16:'configuração de seções eleitorais',
+    EA18:'auxiliar de seção', EA20:'resultado unificado'
+  },
+  maxRequestsPerSecond: 100,
+  specUrl: 'https://www.tse.jus.br/eleicoes/informacoes-tecnicas-sobre-a-divulgacao-de-resultados',
+  /* TODO: implementar quando o path oficial de cada EAxx for confirmado na
+     documentação técnica (ver comentário acima). Deve devolver a URL completa
+     de um arquivo (ex.: EA20 do 1º turno, de uma UF/corrida específica). */
+  buildPath: function(fileCode, params){ return null; }
+};
+
+var tseCache = {}; // "office|uf|turn" -> {status:'unconfigured'|'loading'|'error'|'ready', data, fetchedAt}
+var tseQueue = []; // fila simples para nunca disparar mais de 1 requisição por vez (bem abaixo do limite de 100/s do TSE)
+var tseQueueBusy = false;
+
+function tseFetchJson(url){
+  // Backoff simples e fila serial: nunca dispara requisições em paralelo,
+  // respeita 404 (não repete) e falhas de rede com um único retry.
+  return new Promise(function(resolve, reject){
+    tseQueue.push({url:url, resolve:resolve, reject:reject});
+    tseProcessQueue();
+  });
+}
+function tseProcessQueue(){
+  if (tseQueueBusy || !tseQueue.length) return;
+  tseQueueBusy = true;
+  var job = tseQueue.shift();
+  fetch(job.url, {headers:{'Accept':'application/json'}}).then(function(res){
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }).then(function(data){
+    job.resolve(data);
+  }).catch(function(err){
+    job.reject(err);
+  }).finally(function(){
+    tseQueueBusy = false;
+    setTimeout(tseProcessQueue, 50);
+  });
+}
+
+/* Interface pública exigida pela arquitetura (getElectionData/getCandidates/
+   getResults/getLastUpdate) — ver seção "Sobre os dados". Hoje devolve sempre
+   status "unconfigured" porque TSE_CONFIG.buildPath ainda não está implementado. */
+var tseDataProvider = {
+  getResults: function(office, uf, turn){
+    var key = office+'|'+(uf||'BR')+'|'+turn;
+    if (!tseCache[key]) tseCache[key] = {status:'unconfigured', data:null, fetchedAt:null};
+    var entry = tseCache[key];
+    if (entry.status === 'unconfigured') return entry; // sem path oficial confirmado: não tenta adivinhar URL
+    return entry;
+  },
+  getElectionData: function(){ return {status:'unconfigured'}; },
+  getCandidates: function(office, uf, turn){ return this.getResults(office, uf, turn); },
+  getLastUpdate: function(){ return null; }
+};
+
+/* ============================= MOCK DATA PROVIDER =============================
+   Camada de abstração entre a interface e os dados. Nesta primeira versão,
+   dataProvider aponta para mockDataProvider (dados fictícios / simulados).
+   TODO: substituir mockDataProvider pelo tseDataProvider quando
+   TSE_CONFIG.buildPath (acima) estiver implementado com o path oficial real.
+   Ver seção "Sobre os dados" no app e:
+   https://www.tse.jus.br/eleicoes/informacoes-tecnicas-sobre-a-divulgacao-de-resultados
+   Não inventar endpoints, campos ou códigos eleitorais antes de consultar a
+   documentação oficial vigente do TSE.
+================================================================================ */
+
+var candidateListCache = {};
+function getScopeElectorate(office, uf){
+  if (OFFICES[office].scope === 'national'){
+    var total = 0; UFS.forEach(function(u){ total += u.peso; });
+    return total * 1000000;
+  }
+  return (UF_MAP[uf] ? UF_MAP[uf].peso : 1) * 1000000;
+}
+function getScopeSections(office, uf){
+  return Math.round(getScopeElectorate(office, uf) / 320);
+}
+
+function generateCandidateList(office, uf, turn){
+  var scope = OFFICES[office].scope === 'national' ? 'BR' : uf;
+  var key = office + '|' + scope + '|t' + turn;
+  if (candidateListCache[key]) return candidateListCache[key];
+
+  var list;
+  if (turn === 2){
+    if (!OFFICES[office].hasRunoff){ candidateListCache[key] = []; return []; }
+    var t1 = generateCandidateList(office, uf, 1).slice().sort(function(a,b){ return b.finalShare - a.finalShare; });
+    var top2 = t1.slice(0,2);
+    var rng = mulberry32(hashString(key + '|runoff'));
+    var split = 0.5 + (rng() - 0.5) * 0.16; // between ~42% and ~58%
+    list = [
+      Object.assign({}, top2[0], {finalShare: split}),
+      Object.assign({}, top2[1], {finalShare: 1 - split})
+    ];
+  } else {
+    var rng2 = mulberry32(hashString(key));
+    var cfg = OFFICES[office];
+    var count = cfg.countRange[0] + Math.floor(rng2() * (cfg.countRange[1] - cfg.countRange[0] + 1));
+    var weights = [];
+    var sum = 0;
+    for (var i=0;i<count;i++){
+      var w = -Math.log(Math.max(0.0001, rng2())) + 0.15;
+      weights.push(w); sum += w;
+    }
+    var partySerial = {};
+    list = [];
+    for (var j=0;j<count;j++){
+      var party = PARTIES[Math.floor(rng2() * PARTIES.length)];
+      partySerial[party] = (partySerial[party] || 0) + 1;
+      var base = PARTY_BASE[party];
+      var digits = cfg.digits;
+      var numStr = String(base) + String(partySerial[party]).padStart(2,'0');
+      numStr = numStr.length >= digits ? numStr.slice(0, digits) : numStr.padEnd(digits, '0');
+      list.push({
+        id: 'c' + j,
+        name: 'Candidato ' + letterSeq(j),
+        ballotName: 'Cand. ' + letterSeq(j),
+        number: numStr,
+        party: party,
+        state: scope,
+        office: office,
+        finalShare: weights[j] / sum
+      });
+    }
+  }
+  candidateListCache[key] = list;
+  return list;
+}
+
+/* Percentages/votes at a given point in the simulated count (by tickIndex, t) */
+function computeResults(office, uf, turn, tickIndex, t){
+  var candidates = generateCandidateList(office, uf, turn);
+  if (!candidates.length) return {candidates:[], totalValid:0, totalApurados:0};
+
+  var scope = OFFICES[office].scope === 'national' ? 'BR' : uf;
+  var electorate = getScopeElectorate(office, uf);
+  var totalApurados = electorate * TURNOUT * t;
+  var totalValid = totalApurados * VALID_RATIO[office];
+
+  var amp = 0.36 * (1 - t);
+  var raws = candidates.map(function(c){
+    var seed = office+'|'+scope+'|t'+turn+'|'+c.id+'|tick'+tickIndex;
+    var noise = (randFor(seed) - 0.5) * 2 * amp;
+    return Math.max(0.002, c.finalShare + noise);
+  });
+  var rawSum = raws.reduce(function(a,b){return a+b;}, 0);
+  var pcts = raws.map(function(r){ return (r / rawSum) * 100; });
+
+  var results = candidates.map(function(c, idx){
+    var pct = pcts[idx];
+    var votes = Math.round((pct/100) * totalValid);
+    return {
+      id: c.id, name: c.name, ballotName: c.ballotName, number: c.number, party: c.party,
+      state: c.state, office: c.office, finalShare: c.finalShare,
+      votes: votes, percentage: pct
+    };
+  });
+  results.sort(function(a,b){ return b.votes - a.votes; });
+  results.forEach(function(r, i){ r.position = i + 1; });
+
+  return {candidates: results, totalValid: totalValid, totalApurados: totalApurados};
+}
+
+/* ============================= GLOBAL SIMULATION STATE ============================= */
+var sim = {
+  tick: 0,
+  t: 0.42,
+  history: [], // [{tick, t, label}]
+  fetchError: false
+};
+function buildInitialHistory(){
+  var steps = [0.08, 0.19, 0.30, 0.42];
+  var startH = 19, startM = 0;
+  sim.history = steps.map(function(tv, i){
+    var mins = startM + i * 15;
+    var hh = startH + Math.floor(mins/60);
+    var mm = mins % 60;
+    return {tick:i, t:tv, label: String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')};
+  });
+  sim.tick = steps.length - 1;
+  sim.t = steps[steps.length-1];
+}
+buildInitialHistory();
+
+function advanceSim(){
+  if (sim.t >= 1){
+    sim.fetchError = false;
+    return {advanced:false, error:false};
+  }
+  var errRoll = randFor('err|' + (sim.tick+1) + '|' + Date.now());
+  if (errRoll < 0.10){
+    sim.fetchError = true;
+    return {advanced:false, error:true};
+  }
+  sim.fetchError = false;
+  var stepRng = mulberry32(hashString('step|'+(sim.tick+1)));
+  var step = 0.05 + stepRng() * 0.09;
+  var newT = clamp(sim.t + step, 0, 1);
+  sim.tick += 1;
+  var last = sim.history[sim.history.length-1];
+  var mins = 0, hh = 19, mm = 0;
+  var startTotalMin = 19*60;
+  mins = startTotalMin + sim.history.length * 15;
+  hh = Math.floor(mins/60) % 24; mm = mins % 60;
+  sim.t = newT;
+  sim.history.push({tick: sim.tick, t: newT, label: String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')});
+  return {advanced:true, error:false};
+}
+
+function statusForT(t){
+  if (t <= 0.01) return {key:'aguardando', label:'Aguardando início'};
+  if (t < 0.65) return {key:'andamento', label:'Apuração em andamento'};
+  if (t < 1) return {key:'avancada', label:'Apuração avançada'};
+  return {key:'final', label:'Totalização final'};
+}
+
+/* ============================= APP STATE ============================= */
+var state = {
+  page: 'overview',
+  turn: 1,
+  uf: 'PR',
+  search: '',
+  favorites: [],
+  theme: 'system',
+  autoRefresh: true,
+  refreshInterval: 30000,
+  settingsOpen: false,
+  lastUpdate: Date.now(),
+  dataMode: 'mock',      // 'mock' (demonstração) | 'tse' (dados oficiais — ver TSE_CONFIG)
+  tseEnv: 'oficial'      // 'oficial' | 'simulado'
+};
+
+/* Dispatcher único: quem chama dados de resultado nunca sabe se vieram do
+   mock ou do TSE (seção "A interface do usuário NÃO deve saber de onde os
+   dados vieram."). */
+function getOfficeResults(office, uf, turn){
+  if (state.dataMode === 'tse'){
+    var r = tseDataProvider.getResults(office, uf, turn);
+    if (r.status === 'ready') return r.data;
+    return {candidates: [], totalValid: 0, totalApurados: 0, providerStatus: r.status};
+  }
+  return computeResults(office, uf, turn, sim.tick, sim.t);
+}
+
+function loadPersisted(){
+  try {
+    var raw = localStorage.getItem('apuracao2026_state');
+    if (raw){
+      var saved = JSON.parse(raw);
+      ['turn','uf','theme','autoRefresh','refreshInterval','page','dataMode','tseEnv'].forEach(function(k){
+        if (saved[k] !== undefined) state[k] = saved[k];
+      });
+    }
+    var favRaw = localStorage.getItem('apuracao2026_favorites');
+    if (favRaw){ state.favorites = JSON.parse(favRaw) || []; }
+  } catch(e){ /* localStorage indisponível — segue com padrões */ }
+}
+function persistState(){
+  try {
+    localStorage.setItem('apuracao2026_state', JSON.stringify({
+      turn: state.turn, uf: state.uf, theme: state.theme,
+      autoRefresh: state.autoRefresh, refreshInterval: state.refreshInterval, page: state.page,
+      dataMode: state.dataMode, tseEnv: state.tseEnv
+    }));
+  } catch(e){}
+}
+function persistFavorites(){
+  try { localStorage.setItem('apuracao2026_favorites', JSON.stringify(state.favorites)); } catch(e){}
+}
+loadPersisted();
+
+function favKey(turn, office, uf, id){
+  return turn + '|' + office + '|' + (OFFICES[office].scope==='national'?'BR':uf) + '|' + id;
+}
+function isFav(turn, office, uf, id){ return state.favorites.indexOf(favKey(turn,office,uf,id)) !== -1; }
+function toggleFav(turn, office, uf, id){
+  var k = favKey(turn, office, uf, id);
+  var idx = state.favorites.indexOf(k);
+  if (idx === -1) state.favorites.push(k); else state.favorites.splice(idx, 1);
+  persistFavorites();
+}
+
+/* ============================= ICONS ============================= */
+var ICONS = {
+  vote:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V8a2 2 0 0 0-2-2h-3l-3-3-3 3H6a2 2 0 0 0-2 2v4"/><path d="M4 12v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/><path d="M12 12v4"/><path d="M9 22h6"/></svg>',
+  refresh:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.36"/><path d="M21 4v6h-6"/></svg>',
+  settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 0 1-4 0v-.09A1.7 1.7 0 0 0 9 19.37a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.63 15a1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.63 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.63a1.7 1.7 0 0 0 1.04-1.56V3a2 2 0 0 1 4 0v.09A1.7 1.7 0 0 0 15 4.63a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.37 9a1.7 1.7 0 0 0 1.56 1.04H21a2 2 0 0 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15z"/></svg>',
+  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+  close:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
+  star:'<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2.5l2.9 6.3 6.9.7-5.1 4.7 1.5 6.8L12 17.6 5.8 21l1.5-6.8-5.1-4.7 6.9-.7L12 2.5z"/></svg>'
+};
+
+/* ============================= RENDER HELPERS ============================= */
+function officeUfForCurrent(office){
+  return OFFICES[office].scope === 'national' ? null : state.uf;
+}
+
+function timeAgoLabel(ms){
+  var s = Math.max(0, Math.round((Date.now() - ms)/1000));
+  if (s < 5) return 'Atualizado agora';
+  if (s < 60) return 'Atualizado há ' + s + 's';
+  var m = Math.floor(s/60);
+  return 'Atualizado há ' + m + ' min';
+}
+
+function renderDeltaVotes(cur, prev){
+  if (!prev) return '<span class="delta flat">— sem histórico</span>';
+  var d = cur.votes - prev.votes;
+  if (d === 0) return '<span class="delta flat">— sem alteração</span>';
+  return '<span class="delta up">+' + fmtInt(d) + ' votos</span>';
+}
+function renderDeltaPos(cur, prev){
+  if (!prev) return '';
+  var d = prev.position - cur.position;
+  if (d > 0) return '<span class="delta up">▲ ' + d + '</span>';
+  if (d < 0) return '<span class="delta down">▼ ' + Math.abs(d) + '</span>';
+  return '<span class="delta flat">— </span>';
+}
+
+/* ============================= COMPONENTS ============================= */
+
+function Header(){
+  var status = statusForT(sim.t);
+  return ''+
+  '<div class="topbar">'+
+    '<div class="shell topbar-inner">'+
+      '<div class="brand">'+
+        '<div class="brand-mark">'+ICONS.vote+'</div>'+
+        '<div class="brand-text">'+
+          '<h1>Apuração 2026</h1>'+
+          '<p>Resultados eleitorais em tempo real</p>'+
+        '</div>'+
+      '</div>'+
+      '<div class="topbar-actions">'+
+        '<span class="status-pill" aria-live="polite">'+
+          '<span class="dot '+(sim.fetchError?'err':'pulse')+'"></span>'+
+          '<span>'+(sim.fetchError ? 'Falha ao atualizar' : timeAgoLabel(state.lastUpdate))+'</span>'+
+        '</span>'+
+        '<button class="icon-btn" data-action="refresh-now" aria-label="Atualizar agora" title="Atualizar agora">'+ICONS.refresh+'</button>'+
+        '<button class="icon-btn" data-action="open-settings" aria-label="Configurações" title="Configurações">'+ICONS.settings+'</button>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+}
+
+function DemoBanner(){
+  var html;
+  if (state.dataMode === 'tse'){
+    html = '<div class="demo-banner"><div class="shell">ⓘ MODO DADOS OFICIAIS (TSE) — endpoint ainda não configurado nesta versão. Ver "Sobre os dados".</div></div>';
+  } else {
+    html = '<div class="demo-banner"><div class="shell">⚠ MODO DEMONSTRAÇÃO — DADOS FICTÍCIOS, gerados para fins de demonstração da interface.</div></div>';
+  }
+  if (sim.fetchError){
+    html += '<div class="error-banner shell" style="max-width:1180px;margin:0 auto;">⚠ Não foi possível atualizar os dados. Exibindo última atualização disponível.</div>';
+  }
+  return html;
+}
+
+function Nav(){
+  var items = [
+    {key:'overview', label:'Visão geral'},
+  ];
+  OFFICE_ORDER.forEach(function(o){ items.push({key:o, label:OFFICES[o].short}); });
+  items.push({key:'favorites', label:'Meus candidatos', badge: state.favorites.length});
+  items.push({key:'about', label:'Sobre os dados'});
+
+  var buttons = items.map(function(it){
+    var sel = state.page === it.key;
+    return '<button class="nav-item" role="tab" aria-selected="'+sel+'" data-action="go" data-page="'+it.key+'">'+
+      esc(it.label) + (it.badge ? ' <span class="nav-badge">'+it.badge+'</span>' : '') +
+    '</button>';
+  }).join('');
+
+  return '<div class="nav-wrap"><div class="shell"><nav class="nav" role="tablist" aria-label="Navegação principal">'+buttons+'</nav></div></div>';
+}
+
+function FilterBar(office, opts){
+  opts = opts || {};
+  var cfg = OFFICES[office];
+  var showUf = cfg.scope !== 'national';
+  var showSearch = opts.search !== false;
+
+  var turnSeg = '<div class="field"><label id="lbl-turno">Turno</label>'+
+    '<div class="seg" role="group" aria-labelledby="lbl-turno">'+
+      '<button aria-pressed="'+(state.turn===1)+'" data-action="set-turn" data-value="1">1º Turno</button>'+
+      '<button aria-pressed="'+(state.turn===2)+'" data-action="set-turn" data-value="2">2º Turno</button>'+
+    '</div></div>';
+
+  var ufField = '';
+  if (showUf){
+    var options = UFS.map(function(u){
+      return '<option value="'+u.sigla+'" '+(state.uf===u.sigla?'selected':'')+'>'+esc(u.nome)+' — '+u.sigla+'</option>';
+    }).join('');
+    ufField = '<div class="field"><label for="uf-select">Estado</label>'+
+      '<select class="ui" id="uf-select" data-action="set-uf">'+options+'</select></div>';
+  } else {
+    ufField = '<div class="field"><label>Abrangência</label>'+
+      '<div class="status-tag" style="padding:8px 12px;">Brasil</div></div>';
+  }
+
+  var searchField = showSearch ? (
+    '<div class="field grow"><label for="cand-search">Pesquisar candidato</label>'+
+    '<div class="search-wrap">'+ICONS.search+
+      '<input class="search-input" id="cand-search" type="text" placeholder="Nome, número ou partido..." '+
+      'value="'+esc(state.search)+'" data-action="search" aria-label="Pesquisar candidato por nome, nome de urna, número ou partido">'+
+    '</div></div>'
+  ) : '';
+
+  return '<div class="filters">'+turnSeg+ufField+searchField+'</div>';
+}
+
+function SummaryCards(office, uf, results, totalSections, countedSections){
+  var pct = totalSections ? (countedSections/totalSections*100) : 0;
+  return '<div class="summary-grid">'+
+    '<div class="card"><div class="label">Seções totalizadas</div><div class="value num">'+fmtPct(pct)+'<small>%</small></div>'+
+      '<div class="progress-track"><div class="progress-fill" style="width:'+clamp(pct,0,100)+'%"></div></div></div>'+
+    '<div class="card"><div class="label">Votos apurados</div><div class="value num">'+fmtInt(results.totalApurados)+'</div></div>'+
+    '<div class="card"><div class="label">Votos válidos</div><div class="value num">'+fmtInt(results.totalValid)+'</div></div>'+
+    '<div class="card"><div class="label">Última atualização</div><div class="value num" style="font-size:19px;">'+lastUpdateClock()+'</div></div>'+
+  '</div>';
+}
+function lastUpdateClock(){
+  var h = sim.history[sim.history.length-1];
+  return h ? h.label : '19:00';
+}
+
+function UpdateRow(){
+  var status = statusForT(sim.t);
+  var statusClass = status.key === 'final' ? 'final' : (status.key==='aguardando' ? 'wait' : '');
+  var nextIn = state.autoRefresh && sim.t < 1 ? Math.round(state.refreshInterval/1000) + 's' : null;
+  return '<div class="update-row">'+
+    '<span class="status-tag '+statusClass+'">'+status.label+'</span>'+
+    '<span class="update-left"><span class="dot '+(sim.fetchError?'err':'pulse')+'"></span>'+ (sim.fetchError ? 'Falha na última tentativa' : timeAgoLabel(state.lastUpdate)) +'</span>'+
+    (nextIn ? '<span class="update-left">Próxima atualização em <span class="num">'+nextIn+'</span></span>' : '')+
+    '<span class="grow"></span>'+
+    '<label class="toggle"><span class="switch '+(state.autoRefresh?'on':'')+'" data-action="toggle-autorefresh" role="switch" aria-checked="'+state.autoRefresh+'" tabindex="0" aria-label="Atualização automática"></span>Atualização automática</label>'+
+    '<select class="ui" data-action="set-interval" aria-label="Intervalo de atualização automática" style="font-size:12.5px; padding:6px 8px;">'+
+      [10000,30000,60000,120000].map(function(ms){
+        var label = ms<60000 ? (ms/1000)+'s' : (ms/60000)+' min';
+        return '<option value="'+ms+'" '+(state.refreshInterval===ms?'selected':'')+'>'+label+'</option>';
+      }).join('')+
+    '</select>'+
+    '<button class="btn primary" data-action="refresh-now">'+ICONS.refresh+' Atualizar agora</button>'+
+  '</div>';
+}
+
+function FavoritesSection(office, turn, uf, results, prevResults){
+  var byId = {}; results.candidates.forEach(function(c){ byId[c.id] = c; });
+  var favInScope = results.candidates.filter(function(c){ return isFav(turn, office, uf, c.id); });
+  if (!favInScope.length) return '';
+  var cards = favInScope.map(function(c){
+    return '<div class="fav-card">'+
+      '<div class="fav-name">'+ICONS.star.replace('<svg ', '<svg style="width:13px;height:13px;color:var(--favorite);" ')+' '+esc(c.name)+'</div>'+
+      '<div class="fav-meta">'+OFFICES[office].label + (OFFICES[office].scope!=='national' ? ' · '+uf : '') +' · '+esc(c.party)+' '+esc(c.number)+'</div>'+
+      '<div class="fav-stats num">'+fmtInt(c.votes)+' votos · '+fmtPct(c.percentage)+'% · '+c.position+'º lugar</div>'+
+      '<button class="fav-remove" data-action="unfav" data-office="'+office+'" data-uf="'+uf+'" data-turn="'+turn+'" data-id="'+c.id+'">Remover dos favoritos</button>'+
+    '</div>';
+  }).join('');
+  return '<div><div class="section-head"><h2>⭐ Meus candidatos</h2><span class="muted">'+favInScope.length+' nesta corrida</span></div>'+
+    '<div class="fav-grid">'+cards+'</div></div>';
+}
+
+function CandidateTable(office, turn, uf, results, prevById){
+  var q = state.search.trim().toLowerCase();
+  var rows = results.candidates.filter(function(c){
+    if (!q) return true;
+    return c.name.toLowerCase().indexOf(q) !== -1 ||
+           c.ballotName.toLowerCase().indexOf(q) !== -1 ||
+           c.number.indexOf(q) !== -1 ||
+           c.party.toLowerCase().indexOf(q) !== -1;
+  });
+
+  if (!results.candidates.length){
+    return '<div class="table-card"><div class="empty-note">Nenhum dado disponível para esta seleção.</div></div>';
+  }
+  if (!rows.length){
+    return '<div class="table-card"><div class="empty-note">Nenhum candidato encontrado para "'+esc(state.search)+'".</div></div>';
+  }
+
+  var trs = rows.map(function(c){
+    var prev = prevById ? prevById[c.id] : null;
+    var fav = isFav(turn, office, uf, c.id);
+    return '<tr class="'+(fav?'is-fav':'')+'">'+
+      '<td data-label="Pos.">'+
+        '<div class="pos-cell"><span class="num">'+c.position+'º</span>'+renderDeltaPos(c, prev)+'</div>'+
+      '</td>'+
+      '<td class="cand-cell" data-label="Candidato">'+
+        '<button class="star-btn '+(fav?'active':'')+'" data-action="toggle-fav" data-office="'+office+'" data-uf="'+uf+'" data-turn="'+turn+'" data-id="'+c.id+'" aria-label="'+(fav?'Remover dos favoritos':'Adicionar aos favoritos')+': '+esc(c.name)+'" aria-pressed="'+fav+'">'+(fav?'★':'☆')+'</button>'+
+        '<span class="cand-name">'+esc(c.name)+'</span>'+
+      '</td>'+
+      '<td data-label="Nº" class="num">'+esc(c.number)+'</td>'+
+      '<td data-label="Partido"><span class="party-chip">'+esc(c.party)+'</span></td>'+
+      '<td class="td-num" data-label="Votos"><div class="num">'+fmtInt(c.votes)+'</div>'+renderDeltaVotes(c, prev)+'</td>'+
+      '<td class="td-num" data-label="%"><span class="num">'+fmtPct(c.percentage)+'%</span></td>'+
+    '</tr>';
+  }).join('');
+
+  return '<div class="table-card"><div class="table-scroll">'+
+    '<table class="results">'+
+      '<thead><tr>'+
+        '<th style="width:70px;">Pos.</th><th>Candidato</th><th class="th-num">Nº</th><th>Partido</th>'+
+        '<th class="th-num">Votos</th><th class="th-num">%</th>'+
+      '</tr></thead>'+
+      '<tbody>'+trs+'</tbody>'+
+    '</table>'+
+  '</div></div>';
+}
+
+function VoteChart(office, turn, uf, results){
+  if (!results.candidates.length) return '';
+  var top = results.candidates.slice(0, 8);
+  var rows = top.map(function(c){
+    var fav = isFav(turn, office, uf, c.id);
+    return '<div class="bar-row">'+
+      '<div class="bar-label">'+(fav?'★ ':'')+esc(c.name)+'</div>'+
+      '<div class="bar-track"><div class="bar-fill '+(fav?'fav':'')+'" style="width:'+clamp(c.percentage,0,100)+'%"></div></div>'+
+      '<div class="bar-pct num">'+fmtPct(c.percentage)+'%</div>'+
+    '</div>';
+  }).join('');
+  return '<div class="chart-card"><div class="section-head" style="margin-bottom:12px;"><h2>Distribuição dos votos</h2></div>'+rows+'</div>';
+}
+
+function EvolutionChart(office, turn, uf){
+  var cfg = OFFICES[office];
+  if (turn === 2 && !cfg.hasRunoff) return '';
+  if (state.dataMode === 'tse'){
+    return '<div class="chart-card"><div class="section-head" style="margin-bottom:6px;"><h2>Evolução da apuração</h2></div>'+
+      '<p class="muted" style="font-size:12.5px;">O histórico de snapshots para este gráfico ainda não é gravado a partir dos '+
+      'arquivos oficiais do TSE nesta versão — ver "Sobre os dados".</p></div>';
+  }
+  var candidates = generateCandidateList(office, uf, turn);
+  if (!candidates.length) return '';
+  var top = candidates.slice().sort(function(a,b){return b.finalShare-a.finalShare;}).slice(0, Math.min(4, candidates.length));
+  var palette = ['var(--chart-1)','var(--chart-2)','var(--chart-3)','var(--chart-4)','var(--chart-5)'];
+
+  var W = 640, H = 220, padL = 34, padR = 14, padT = 14, padB = 26;
+  var innerW = W - padL - padR, innerH = H - padT - padB;
+
+  var hist = sim.history;
+  var series = top.map(function(cand, ci){
+    var pts = hist.map(function(h){
+      var res = computeResults(office, uf, turn, h.tick, h.t);
+      var found = res.candidates.filter(function(c){ return c.id === cand.id; })[0];
+      return found ? found.percentage : 0;
+    });
+    return {cand: cand, color: palette[ci % palette.length], pts: pts};
+  });
+
+  var maxV = 10;
+  series.forEach(function(s){ s.pts.forEach(function(v){ if (v > maxV) maxV = v; }); });
+  maxV = Math.ceil((maxV + 6) / 10) * 10;
+
+  function xAt(i){ return padL + (hist.length<=1 ? 0 : (i/(hist.length-1)) * innerW); }
+  function yAt(v){ return padT + innerH - (v/maxV) * innerH; }
+
+  var gridLines = '';
+  var ticks = 4;
+  for (var g=0; g<=ticks; g++){
+    var val = (maxV/ticks) * g;
+    var y = yAt(val);
+    gridLines += '<line x1="'+padL+'" y1="'+y+'" x2="'+(W-padR)+'" y2="'+y+'" stroke="var(--border)" stroke-width="1"/>';
+    gridLines += '<text x="'+(padL-8)+'" y="'+(y+4)+'" text-anchor="end" font-size="10" fill="var(--text-3)">'+Math.round(val)+'%</text>';
+  }
+  var xLabels = hist.map(function(h,i){
+    if (hist.length > 6 && i % 2 !== 0 && i !== hist.length-1) return '';
+    return '<text x="'+xAt(i)+'" y="'+(H-6)+'" text-anchor="middle" font-size="10" fill="var(--text-3)">'+h.label+'</text>';
+  }).join('');
+
+  var lines = series.map(function(s){
+    var d = s.pts.map(function(v,i){ return (i===0?'M':'L') + xAt(i).toFixed(1) + ',' + yAt(v).toFixed(1); }).join(' ');
+    var lastX = xAt(s.pts.length-1), lastY = yAt(s.pts[s.pts.length-1]);
+    return '<path d="'+d+'" fill="none" stroke="'+s.color+'" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>'+
+           '<circle cx="'+lastX+'" cy="'+lastY+'" r="3.2" fill="'+s.color+'"/>';
+  }).join('');
+
+  var legend = series.map(function(s){
+    return '<div class="legend-item"><span class="legend-dot" style="background:'+s.color+'"></span>'+esc(s.cand.name)+'</div>';
+  }).join('');
+
+  return '<div class="chart-card">'+
+    '<div class="section-head" style="margin-bottom:6px;"><h2>Evolução da apuração</h2><span class="muted">percentual de votos ao longo da contagem</span></div>'+
+    '<div class="table-scroll"><svg class="chart-svg" viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;min-width:520px;" role="img" aria-label="Gráfico de evolução do percentual de votos por candidato ao longo do tempo">'+
+      gridLines + xLabels + lines +
+    '</svg></div>'+
+    '<div class="legend">'+legend+'</div>'+
+  '</div>';
+}
+
+function OfficePage(office){
+  var cfg = OFFICES[office];
+  var uf = officeUfForCurrent(office);
+
+  if (state.turn === 2 && !cfg.hasRunoff){
+    return '<div class="stack">'+
+      FilterBar(office, {search:false}) +
+      '<div class="empty-state"><h3>Sem segundo turno</h3>'+
+      '<p>O cargo de '+cfg.label.toLowerCase()+' é decidido em turno único, portanto não há segundo turno para esta eleição.</p>'+
+      '<button class="btn primary" data-action="set-turn" data-value="1">Ver 1º turno</button></div>'+
+    '</div>';
+  }
+
+  var results = getOfficeResults(office, uf, state.turn);
+  var prevResults = (state.dataMode === 'mock' && sim.tick > 0) ? computeResults(office, uf, state.turn, sim.tick-1, sim.history[sim.tick-1].t) : null;
+  var prevById = {};
+  if (prevResults) prevResults.candidates.forEach(function(c){ prevById[c.id] = c; });
+
+  var totalSections = getScopeSections(office, uf);
+  var countedSections = state.dataMode === 'tse' ? 0 : Math.round(totalSections * sim.t);
+
+  if (state.dataMode === 'tse' && results.providerStatus && results.providerStatus !== 'ready'){
+    return '<div class="stack">'+
+      FilterBar(office) +
+      '<div class="empty-state"><h3>Dados indisponíveis</h3>'+
+      '<p>O modo de dados oficiais (TSE) está ativo, mas o endpoint exato ainda não foi configurado nesta implementação — '+
+      'ver "Sobre os dados" para detalhes e os links da documentação técnica oficial.</p>'+
+      '<button class="btn primary" data-action="set-datamode" data-value="mock">Voltar ao modo demonstração</button></div>'+
+    '</div>';
+  }
+
+  return '<div class="stack">'+
+    FilterBar(office) +
+    SummaryCards(office, uf, results, totalSections, countedSections) +
+    UpdateRow() +
+    FavoritesSection(office, state.turn, uf, results, prevById) +
+    VoteChart(office, state.turn, uf, results) +
+    '<div><div class="section-head"><h2>Resultados — '+cfg.label + (uf?' · '+uf:' · Brasil') +'</h2><span class="muted">ordenado por votos</span></div>'+
+    CandidateTable(office, state.turn, uf, results, prevById) + '</div>' +
+    EvolutionChart(office, state.turn, uf) +
+  '</div>';
+}
+
+function OverviewPage(){
+  var cards = OFFICE_ORDER.map(function(office){
+    var cfg = OFFICES[office];
+    var uf = officeUfForCurrent(office);
+    var results = getOfficeResults(office, uf, 1);
+    var leader = results.candidates[0];
+    var status = state.dataMode === 'tse' ? {label:'Dados indisponíveis'} : statusForT(sim.t);
+    return '<button class="overview-card" data-action="go" data-page="'+office+'">'+
+      '<div class="office-name">'+cfg.label + (uf ? ' — '+uf : ' — Brasil') + '</div>'+
+      (leader ? (
+        '<div class="leader-pct num">'+fmtPct(leader.percentage)+'%</div>'+
+        '<div class="leader-name">'+esc(leader.name)+'</div>'
+      ) : '<div class="leader-name">Sem dados</div>')+
+      '<div class="office-status">'+status.label+'</div>'+
+    '</button>';
+  }).join('');
+
+  return '<div class="stack">'+
+    '<div class="section-head"><h2>Eleições 2026</h2><span class="muted">1º turno · estado de referência: '+state.uf+'</span></div>'+
+    '<div class="overview-grid">'+cards+'</div>'+
+  '</div>';
+}
+
+function FavoritesPage(){
+  if (!state.favorites.length){
+    return '<div class="empty-state"><h3>Meus candidatos</h3>'+
+      '<p>Você ainda não adicionou candidatos aos favoritos.</p>'+
+      '<button class="btn primary" data-action="go" data-page="overview">Explorar candidatos</button></div>';
+  }
+  var groups = OFFICE_ORDER.map(function(office){
+    var cfg = OFFICES[office];
+    var entries = state.favorites.filter(function(k){ return k.split('|')[1] === office; });
+    if (!entries.length) return '';
+    var cards = entries.map(function(k){
+      var parts = k.split('|'); var turn = +parts[0]; var favUf = parts[2] === 'BR' ? null : parts[2]; var id = parts[3];
+      var res = getOfficeResults(office, favUf, turn);
+      var cand = res.candidates.filter(function(c){ return c.id === id; })[0];
+      if (!cand) return '';
+      return '<div class="fav-card">'+
+        '<div class="fav-name">'+ICONS.star.replace('<svg ', '<svg style="width:13px;height:13px;color:var(--favorite);" ')+' '+esc(cand.name)+'</div>'+
+        '<div class="fav-meta">'+cfg.label + (favUf?' · '+favUf:'') + ' · '+turn+'º turno · '+esc(cand.party)+' '+esc(cand.number)+'</div>'+
+        '<div class="fav-stats num">'+fmtInt(cand.votes)+' votos · '+fmtPct(cand.percentage)+'% · '+cand.position+'º lugar</div>'+
+        '<button class="fav-remove" data-action="unfav-key" data-key="'+esc(k)+'">Remover dos favoritos</button>'+
+      '</div>';
+    }).join('');
+    return '<div><div class="section-head"><h2>'+cfg.label+'</h2></div><div class="fav-grid">'+cards+'</div></div>';
+  }).join('');
+  return '<div class="stack">'+
+    '<div class="section-head"><h2>Meus candidatos</h2><span class="muted">'+state.favorites.length+' favoritos</span></div>'+
+    groups+
+  '</div>';
+}
+
+function AboutPage(){
+  var status = statusForT(sim.t);
+  var modeLabel = state.dataMode === 'tse' ? 'Dados oficiais (TSE) — ver nota técnica abaixo' : 'Dados fictícios de demonstração';
+  return '<div class="prose">'+
+    '<h2>Fonte dos resultados</h2>'+
+    '<p>Os resultados oficiais são provenientes dos arquivos de divulgação de resultados do Tribunal Superior Eleitoral (TSE). Em "Configurações" é possível alternar entre o modo demonstração (dados fictícios) e o modo dados oficiais.</p>'+
+    '<h2>Sobre este aplicativo</h2>'+
+    '<p>O Apuração 2026 é uma interface independente de visualização de dados eleitorais. Ele não altera os dados recebidos e a frequência de atualização depende da disponibilidade da fonte oficial. O aplicativo não realiza análise política, previsão eleitoral nem recomendação de voto — apenas apresenta dados.</p>'+
+    '<h2>Ficha técnica</h2>'+
+    '<dl class="kv">'+
+      '<dt>Última atualização dos dados</dt><dd class="num">'+(state.dataMode==='tse' ? '—' : lastUpdateClock()+' (simulado)')+'</dd>'+
+      '<dt>Situação da apuração</dt><dd>'+(state.dataMode==='tse' ? 'Dados indisponíveis' : status.label)+'</dd>'+
+      '<dt>Fonte ativa</dt><dd>'+modeLabel+'</dd>'+
+      '<dt>Versão do modelo de dados</dt><dd>0.1.0</dd>'+
+    '</dl>'+
+    '<h2>Integração com o TSE — nota técnica</h2>'+
+    '<p>Confirmado na documentação oficial do TSE (consultada em 25/09/2026):</p>'+
+    '<dl class="kv">'+
+      '<dt>Ambiente oficial</dt><dd class="num">resultados.tse.jus.br</dd>'+
+      '<dt>Ambiente simulado</dt><dd class="num">resultados-sim.tse.jus.br/simulado</dd>'+
+      '<dt>Simulados agendados</dt><dd>15–17/set, 22–24/set e 28–29/set de 2026</dd>'+
+      '<dt>Limite de requisições</dt><dd>100 por IP por segundo (excedentes: bloqueio de 10 min)</dd>'+
+      '<dt>Arquivos publicados</dt><dd>EA10, EA11, EA12, EA14, EA15, EA16, EA18, EA20</dd>'+
+    '</dl>'+
+    '<p>O padrão exato de URL/path e o schema de campos de cada arquivo (EA10–EA20) não foram confirmados nesta implementação — as páginas de especificação individuais e o manual de verificação de assinatura JWS não puderam ser lidos por completo. Por isso, o modo "Dados oficiais (TSE)" desta versão mostra "Dados indisponíveis" em vez de resultados inventados, mesmo quando selecionado. Consulte a <a href="'+TSE_CONFIG.specUrl+'" target="_blank" rel="noopener">página oficial de informações técnicas</a> antes de preencher <code>TSE_CONFIG.buildPath</code> no código-fonte.</p>'+
+    '<div class="notice">Os resultados apresentados são parciais enquanto a totalização não estiver concluída. '+(state.dataMode==='mock' ? 'Este ambiente utiliza dados fictícios para demonstração da interface.' : 'O modo de dados oficiais está ativo, mas ainda sem endpoint configurado nesta versão.')+'</div>'+
+  '</div>';
+}
+
+function SettingsModal(){
+  if (!state.settingsOpen) return '';
+  return '<div class="modal-backdrop" data-action="close-settings">'+
+    '<div class="modal" role="dialog" aria-modal="true" aria-label="Configurações" onclick="event.stopPropagation()">'+
+      '<div class="modal-head"><h3>Configurações</h3>'+
+        '<button class="icon-btn" data-action="close-settings" aria-label="Fechar">'+ICONS.close+'</button></div>'+
+      '<div class="modal-section">'+
+        '<div class="label">Fonte dos dados</div>'+
+        '<div class="radio-row" role="radiogroup" aria-label="Fonte dos dados">'+
+          '<button aria-pressed="'+(state.dataMode==='mock')+'" data-action="set-datamode" data-value="mock">Demonstração</button>'+
+          '<button aria-pressed="'+(state.dataMode==='tse')+'" data-action="set-datamode" data-value="tse">Dados oficiais (TSE)</button>'+
+        '</div>'+
+        (state.dataMode==='tse' ? '<div class="row-desc" style="margin-top:7px;">Endpoint oficial ainda não configurado nesta versão — ver "Sobre os dados".</div>' : '')+
+      '</div>'+
+      '<div class="modal-section">'+
+        '<div class="label">Aparência</div>'+
+        '<div class="radio-row" role="radiogroup" aria-label="Tema">'+
+          ['light','dark','system'].map(function(t){
+            var labels = {light:'Claro', dark:'Escuro', system:'Sistema'};
+            return '<button aria-pressed="'+(state.theme===t)+'" data-action="set-theme" data-value="'+t+'">'+labels[t]+'</button>';
+          }).join('')+
+        '</div>'+
+      '</div>'+
+      '<div class="modal-section">'+
+        '<div class="label">Atualização</div>'+
+        '<div class="modal-row"><div><div class="row-label">Atualização automática</div>'+
+          '<div class="row-desc">Simula novas apurações periodicamente</div></div>'+
+          '<span class="switch '+(state.autoRefresh?'on':'')+'" data-action="toggle-autorefresh" role="switch" aria-checked="'+state.autoRefresh+'" tabindex="0" aria-label="Atualização automática"></span></div>'+
+      '</div>'+
+      '<div class="modal-section">'+
+        '<div class="label">Ambiente TSE</div>'+
+        '<div class="radio-row" role="radiogroup" aria-label="Ambiente TSE">'+
+          '<button aria-pressed="'+(state.tseEnv==='oficial')+'" data-action="set-tseenv" data-value="oficial" '+(state.dataMode!=='tse'?'disabled':'')+'>Oficial</button>'+
+          '<button aria-pressed="'+(state.tseEnv==='simulado')+'" data-action="set-tseenv" data-value="simulado" '+(state.dataMode!=='tse'?'disabled':'')+'>Simulado</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+}
+
+function Footer(){
+  return '<footer><div class="shell footer-inner">'+
+    '<div class="footer-top"><strong>Apuração 2026</strong><span>Versão 0.1.0</span></div>'+
+    '<p>Aplicativo independente para visualização de dados eleitorais. Não representa o TSE nem qualquer órgão oficial.</p>'+
+    '<p>Fonte dos dados oficiais (integração futura): Tribunal Superior Eleitoral.</p>'+
+    '<div class="footer-credit">Desenvolvido por <a href="https://github.com/andrescultori" target="_blank" rel="noopener">André Scultori</a> · © 2026 · <a href="https://github.com/andrescultori" target="_blank" rel="noopener">GitHub</a></div>'+
+  '</div></footer>';
+}
+
+/* ============================= MAIN RENDER ============================= */
+function pageContent(){
+  if (state.page === 'overview') return OverviewPage();
+  if (state.page === 'favorites') return FavoritesPage();
+  if (state.page === 'about') return AboutPage();
+  if (OFFICES[state.page]) return OfficePage(state.page);
+  return OverviewPage();
+}
+
+function applyTheme(){
+  var root = document.documentElement;
+  if (state.theme === 'light') root.setAttribute('data-theme','light');
+  else if (state.theme === 'dark') root.setAttribute('data-theme','dark');
+  else root.removeAttribute('data-theme');
+}
+
+function render(){
+  applyTheme();
+  var app = document.getElementById('app');
+  app.innerHTML =
+    Header() +
+    DemoBanner() +
+    Nav() +
+    '<main class="shell"><div id="page-root">' + pageContent() + '</div></main>' +
+    Footer() +
+    SettingsModal();
+
+  // restore focus to search field caret at end, if it was focused
+  var search = document.getElementById('cand-search');
+  if (search && document.activeElement !== search && state._focusSearch){
+    search.focus();
+    var v = search.value; search.value=''; search.value=v;
+  }
+  state._focusSearch = false;
+}
+
+/* ============================= EVENTS ============================= */
+document.addEventListener('click', function(e){
+  var el = e.target.closest('[data-action]');
+  if (!el) return;
+  var action = el.getAttribute('data-action');
+
+  if (action === 'go'){
+    state.page = el.getAttribute('data-page');
+    state.search = '';
+    persistState(); render(); return;
+  }
+  if (action === 'set-turn'){
+    state.turn = +el.getAttribute('data-value');
+    persistState(); render(); return;
+  }
+  if (action === 'toggle-fav'){
+    toggleFav(+el.getAttribute('data-turn'), el.getAttribute('data-office'), el.getAttribute('data-uf'), el.getAttribute('data-id'));
+    render(); return;
+  }
+  if (action === 'unfav'){
+    toggleFav(+el.getAttribute('data-turn'), el.getAttribute('data-office'), el.getAttribute('data-uf'), el.getAttribute('data-id'));
+    render(); return;
+  }
+  if (action === 'unfav-key'){
+    var k = el.getAttribute('data-key');
+    var idx = state.favorites.indexOf(k);
+    if (idx !== -1){ state.favorites.splice(idx,1); persistFavorites(); }
+    render(); return;
+  }
+  if (action === 'refresh-now'){
+    if (state.dataMode === 'tse'){
+      // Em modo TSE, "atualizar agora" tentaria refazer a busca real; como o
+      // endpoint ainda não está configurado (ver TSE_CONFIG), apenas marca a
+      // tentativa em vez de simular dados.
+      state.lastUpdate = Date.now();
+      render(); return;
+    }
+    advanceSim();
+    state.lastUpdate = Date.now();
+    render(); return;
+  }
+  if (action === 'toggle-autorefresh'){
+    state.autoRefresh = !state.autoRefresh;
+    persistState(); render(); resetAutoRefreshTimer(); return;
+  }
+  if (action === 'open-settings'){
+    state.settingsOpen = true; render(); return;
+  }
+  if (action === 'close-settings'){
+    state.settingsOpen = false; render(); return;
+  }
+  if (action === 'set-datamode'){
+    state.dataMode = el.getAttribute('data-value');
+    state.settingsOpen = state.settingsOpen; // mantém estado do modal como estava
+    persistState(); render(); return;
+  }
+  if (action === 'set-tseenv'){
+    state.tseEnv = el.getAttribute('data-value');
+    persistState(); render(); return;
+  }
+  if (action === 'set-theme'){
+    state.theme = el.getAttribute('data-value');
+    persistState(); render(); return;
+  }
+});
+
+document.addEventListener('keydown', function(e){
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-action="toggle-autorefresh"]')){
+    e.preventDefault();
+    state.autoRefresh = !state.autoRefresh;
+    persistState(); render(); resetAutoRefreshTimer();
+  }
+  if (e.key === 'Escape' && state.settingsOpen){
+    state.settingsOpen = false; render();
+  }
+});
+
+document.addEventListener('input', function(e){
+  if (e.target.id === 'cand-search'){
+    state.search = e.target.value;
+    state._focusSearch = true;
+    render();
+  }
+});
+document.addEventListener('change', function(e){
+  if (e.target.id === 'uf-select'){
+    state.uf = e.target.value;
+    persistState(); render();
+  }
+  if (e.target.getAttribute && e.target.getAttribute('data-action') === 'set-interval'){
+    state.refreshInterval = +e.target.value;
+    persistState(); render(); resetAutoRefreshTimer();
+  }
+});
+
+/* ============================= TIMERS ============================= */
+var autoTimer = null;
+function resetAutoRefreshTimer(){
+  if (autoTimer) clearInterval(autoTimer);
+  if (state.autoRefresh){
+    autoTimer = setInterval(function(){
+      if (state.dataMode !== 'tse') advanceSim();
+      state.lastUpdate = Date.now();
+      render();
+    }, state.refreshInterval);
+  }
+}
+setInterval(function(){
+  // keep "Atualizado há Xs" fresh without waiting for a full data refresh
+  var pill = document.querySelector('.status-pill span:last-child');
+  if (pill && !sim.fetchError) pill.textContent = timeAgoLabel(state.lastUpdate);
+}, 1000);
+
+/* ============================= INIT ============================= */
+render();
+resetAutoRefreshTimer();
+
+})();
+</script>
