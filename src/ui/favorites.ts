@@ -1,6 +1,8 @@
 import { OFFICE_ORDER, OFFICES } from '../data/domain';
 import type { ElectionResults, OfficeKey, Turn } from '../data/types';
 import type { AppContext } from '../state/appContext';
+import { resolveFavoriteKey } from '../state/appContext';
+import { searchAllCandidates } from '../state/candidateSearch';
 import { esc, fmtInt, fmtPct } from '../util';
 import { ICONS } from './icons';
 
@@ -32,12 +34,71 @@ export function FavoritesSection(
   );
 }
 
+/**
+ * Painel de busca do módulo "Candidatos Favoritos": encontra um candidato por
+ * nome ou número em qualquer cargo/UF (não só na corrida atualmente aberta) e
+ * permite marcá-lo como favorito diretamente daqui.
+ */
+function FavoritesSearchPanel(app: AppContext): string {
+  const turnSeg =
+    '<div class="seg" role="group" aria-label="Turno da busca">' +
+    `<button aria-pressed="${app.state.turn === 1}" data-action="set-turn" data-value="1">1º Turno</button>` +
+    `<button aria-pressed="${app.state.turn === 2}" data-action="set-turn" data-value="2">2º Turno</button>` +
+    '</div>';
+
+  const hits = searchAllCandidates(app, app.state.search);
+  const query = app.state.search.trim();
+
+  let resultsHtml: string;
+  if (!query) {
+    resultsHtml = '<p class="muted" style="padding:4px 2px;">Digite um nome ou número para encontrar um candidato.</p>';
+  } else if (!hits.length) {
+    resultsHtml = `<p class="muted" style="padding:4px 2px;">Nenhum candidato encontrado para "${esc(query)}".</p>`;
+  } else {
+    const rows = hits
+      .map(({ office, uf, candidate: c }) => {
+        const fav = app.isFav(app.state.turn, office, uf, c.id);
+        const cfg = OFFICES[office];
+        return (
+          '<div class="search-result-row">' +
+          `<button class="star-btn ${fav ? 'active' : ''}" data-action="toggle-fav" data-office="${office}" data-uf="${uf ?? ''}" data-turn="${app.state.turn}" data-id="${c.id}" aria-label="${fav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}: ${esc(c.name)}" aria-pressed="${fav}">${fav ? '★' : '☆'}</button>` +
+          '<div class="search-result-info">' +
+          `<div class="cand-name">${esc(c.name)}</div>` +
+          `<div class="fav-meta">${cfg.label}${uf ? ' · ' + uf : ''} · <span class="party-chip">${esc(c.party)}</span> ${esc(c.number)}</div>` +
+          '</div>' +
+          '</div>'
+        );
+      })
+      .join('');
+    resultsHtml = `<div class="search-results">${rows}</div>`;
+  }
+
+  return (
+    '<div class="table-card" style="padding:14px 15px;">' +
+    '<div class="section-head" style="margin-bottom:10px;"><h2>Buscar candidato</h2>' +
+    turnSeg +
+    '</div>' +
+    '<div class="search-wrap" style="margin-bottom:10px;">' +
+    ICONS.search +
+    `<input class="search-input" id="cand-search" type="text" placeholder="Nome ou número do candidato..." ` +
+    `value="${esc(app.state.search)}" data-action="search" aria-label="Buscar candidato por nome ou número, em qualquer cargo e estado">` +
+    '</div>' +
+    resultsHtml +
+    '</div>'
+  );
+}
+
 export function FavoritesPage(app: AppContext): string {
+  const searchPanel = FavoritesSearchPanel(app);
+
   if (!app.state.favorites.length) {
     return (
+      '<div class="stack">' +
+      searchPanel +
       '<div class="empty-state"><h3>Meus candidatos</h3>' +
-      '<p>Você ainda não adicionou candidatos aos favoritos.</p>' +
-      '<button class="btn primary" data-action="go" data-page="overview">Explorar candidatos</button></div>'
+      '<p>Você ainda não adicionou candidatos aos favoritos. Use a busca acima para encontrar e marcar um candidato.</p>' +
+      '</div>' +
+      '</div>'
     );
   }
   const groups = OFFICE_ORDER.map((office) => {
@@ -46,13 +107,9 @@ export function FavoritesPage(app: AppContext): string {
     if (!entries.length) return '';
     const cards = entries
       .map((k) => {
-        const parts = k.split('|');
-        const turn = Number(parts[0]) as Turn;
-        const favUf = parts[2] === 'BR' ? null : (parts[2] ?? null);
-        const id = parts[3]!;
-        const res = app.getOfficeResults(office, favUf, turn);
-        const cand = res.candidates.find((c) => c.id === id);
-        if (!cand) return '';
+        const resolved = resolveFavoriteKey(app, k);
+        if (!resolved) return '';
+        const { turn, uf: favUf, candidate: cand } = resolved;
         return (
           '<div class="fav-card">' +
           `<div class="fav-name">${STAR_SM} ${esc(cand.name)}</div>` +
@@ -67,6 +124,7 @@ export function FavoritesPage(app: AppContext): string {
   }).join('');
   return (
     '<div class="stack">' +
+    searchPanel +
     `<div class="section-head"><h2>Meus candidatos</h2><span class="muted">${app.state.favorites.length} favoritos</span></div>` +
     groups +
     '</div>'
