@@ -3,6 +3,7 @@ import type { AppContext } from '../state/appContext';
 import { AboutPage } from './aboutPage';
 import { DemoBanner, Header } from './header';
 import { FavoritesPage } from './favorites';
+import { FavoritesBar } from './favoritesBar';
 import { Footer } from './footer';
 import { Nav } from './nav';
 import { OfficePage } from './officePage';
@@ -23,6 +24,7 @@ export function render(app: AppContext, root: HTMLElement): void {
   root.innerHTML =
     Header(app) +
     DemoBanner(app) +
+    FavoritesBar(app) +
     Nav(app) +
     `<main class="shell"><div id="page-root">${pageContent(app)}</div></main>` +
     Footer() +

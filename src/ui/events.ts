@@ -22,11 +22,19 @@ export function setupEvents(app: AppContext, root: HTMLElement): void {
     const action = el.getAttribute('data-action');
 
     switch (action) {
-      case 'go':
+      case 'go': {
         app.state.page = el.getAttribute('data-page') as PageKey;
         app.state.search = '';
+        // Chips da barra de favoritos levam direto à corrida do candidato,
+        // ajustando turno/UF — os demais botões "go" (nav, cards) não têm
+        // esses atributos, então nada muda para eles.
+        const gotoUf = el.getAttribute('data-uf');
+        const gotoTurn = el.getAttribute('data-turn');
+        if (gotoUf) app.state.uf = gotoUf;
+        if (gotoTurn) app.state.turn = Number(gotoTurn) as Turn;
         app.persist();
         return;
+      }
       case 'set-turn':
         app.state.turn = Number(el.getAttribute('data-value')) as Turn;
         app.persist();

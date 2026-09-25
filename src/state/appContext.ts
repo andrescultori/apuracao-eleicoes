@@ -2,7 +2,7 @@ import { OFFICES } from '../data/domain';
 import { advanceSim, buildInitialHistory, computeResults, createMockDataProvider } from '../data/mockDataProvider';
 import type { SimState } from '../data/mockDataProvider';
 import { createTseDataProvider } from '../data/tseDataProvider';
-import type { DataProvider, ElectionResults, OfficeKey, ProviderStatus, Turn } from '../data/types';
+import type { CandidateResult, DataProvider, ElectionResults, OfficeKey, ProviderStatus, Turn } from '../data/types';
 import {
   createInitialState,
   favKey,
@@ -122,6 +122,33 @@ export function timeAgoLabel(ms: number): string {
 export function lastUpdateClock(app: AppContext): string {
   const h = app.sim.history[app.sim.history.length - 1];
   return h ? h.label : '19:00';
+}
+
+export interface ResolvedFavorite {
+  key: string;
+  turn: Turn;
+  office: OfficeKey;
+  uf: string | null;
+  candidate: CandidateResult;
+}
+
+/**
+ * Reconstrói um favorito (guardado como a chave "turno|cargo|uf|id") de volta
+ * em cargo/turno/UF/candidato, buscando o candidato atual pelos resultados
+ * correntes. Devolve `null` quando o candidato não é (mais) encontrado nessa
+ * corrida — ex.: modo TSE sem dados, ou a lista mudou entre atualizações.
+ */
+export function resolveFavoriteKey(app: AppContext, key: string): ResolvedFavorite | null {
+  const parts = key.split('|');
+  const turn = Number(parts[0]) as Turn;
+  const office = parts[1] as OfficeKey;
+  const uf = parts[2] === 'BR' ? null : (parts[2] ?? null);
+  const id = parts[3];
+  if (!office || !id) return null;
+  const results = app.getOfficeResults(office, uf, turn);
+  const candidate = results.candidates.find((c) => c.id === id);
+  if (!candidate) return null;
+  return { key, turn, office, uf, candidate };
 }
 
 export { OFFICES };
