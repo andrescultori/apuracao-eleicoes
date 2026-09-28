@@ -20,24 +20,24 @@
  *     (Python), `nimbus-jose-jwt` (Java), `firebase/php-jwt` (PHP),
  *     `Microsoft.IdentityModel.Tokens` (.NET).
  *
- * NÃO CONFIRMADO — ainda falta a chave pública real para verificar de fato:
- *   - O Apêndice A do manual (lido) traz chaves de **DESENVOLVIMENTO**,
- *     explicitamente marcadas "não válidas para resultados oficiais". Deve
- *     haver um apêndice equivalente para produção nas páginas 5–11, ainda não
- *     lidas.
- *   - Por isso `tseDataProvider.ts` continua sem chamar `verifyJws` de verdade
- *     — sem a chave real (JWK do TSE, importada via
- *     `crypto.subtle.importKey('jwk', jwk, {name:'Ed25519'}, false, ['verify'])`),
- *     não há nada a verificar contra, e nenhum dado deve ser promovido a
- *     "ready" nessa condição. Ver TODO em tseDataProvider.ts.
+ * ATUALIZADO em 29/09/2026: as páginas 5–11 do manual (Apêndice B) foram
+ * lidas e trazem a chave pública de PRODUÇÃO, validada ao vivo contra 3
+ * arquivos reais do simulado (assinatura confere com a chave de
+ * desenvolvimento; falha com a de produção, como esperado). As duas chaves
+ * (dev/simulado e produção/oficial) ficam em `tseKeys.ts`, uma por ambiente,
+ * fixas — o manual não menciona rotação nem JWKS, e é explícito que a chave
+ * nunca deve ser lida de dentro do próprio `.jws` que está sendo verificado.
+ * `tseDataProvider.ts` já liga essa verificação de ponta a ponta.
  *
  * O que ESTE módulo faz, de forma genérica e sem depender de qual chave será
  * usada:
  *  - decodifica um JWS em "compact serialization" (header.payload.signature);
- *  - localiza o algoritmo declarado no header (`alg`);
+ *  - localiza o algoritmo declarado no header (`alg`) e opcionalmente restringe
+ *    a um conjunto permitido (`allowedAlgs`) e confere o `kid` esperado
+ *    (`expectedKid`) — ver `VerifyJwsOptions`;
  *  - verifica a assinatura via Web Crypto (SubtleCrypto), a partir de uma
- *    CryptoKey pública fornecida pelo chamador (ver `TODO(tse-integracao)`
- *    em tseConfig.ts para como obter essa chave a partir da documentação real);
+ *    CryptoKey pública fornecida pelo chamador (ver `tseKeys.ts` para como o
+ *    TSE resolve essa chave por ambiente);
  *  - só devolve o payload decodificado quando a assinatura é válida.
  *
  * Nunca aceitar um payload cuja assinatura não verifique — nesse caso o
@@ -74,13 +74,36 @@ const ALG_TO_SUBTLE: Record<string, { name: string; hash?: string }> = {
   ES384: { name: 'ECDSA', hash: 'SHA-384' },
 };
 
+export interface VerifyJwsOptions {
+  /**
+   * Restringe quais algoritmos são aceitos, além de precisarem estar em
+   * `ALG_TO_SUBTLE`. Sem isso, qualquer algoritmo suportado passa — útil para
+   * testar o "motor" genérico, mas o TSE só deve aceitar EdDSA (ver
+   * tseDataProvider.ts, que chama com `allowedAlgs: ['EdDSA']`), evitando
+   * ataques de confusão de algoritmo.
+   */
+  allowedAlgs?: string[];
+  /**
+   * Confere o `kid` do header contra o valor esperado (o `kid` da chave que o
+   * chamador está usando para verificar). Sem isso, um JWS com `kid` de outro
+   * ambiente/eleição passaria despercebido caso a chave verificasse por
+   * coincidência de curva — nunca deve acontecer com Ed25519, mas a checagem
+   * explícita é uma defesa em profundidade barata.
+   */
+  expectedKid?: string;
+}
+
 /**
  * Verifica um JWS em compact serialization ("header.payload.signature") contra
  * uma chave pública já importada. Lança `JwsVerificationError` para qualquer
- * formato inválido ou assinatura que não confira — nunca retorna um payload
- * não verificado.
+ * formato inválido, algoritmo/kid não esperado, ou assinatura que não confira
+ * — nunca retorna um payload não verificado.
  */
-export async function verifyJws(compact: string, publicKey: CryptoKey): Promise<DecodedJws> {
+export async function verifyJws(
+  compact: string,
+  publicKey: CryptoKey,
+  options: VerifyJwsOptions = {},
+): Promise<DecodedJws> {
   const parts = compact.split('.');
   if (parts.length !== 3) {
     throw new JwsVerificationError('Formato JWS inválido: esperado header.payload.signature');
@@ -97,6 +120,12 @@ export async function verifyJws(compact: string, publicKey: CryptoKey): Promise<
   const alg = header['alg'];
   if (typeof alg !== 'string' || !ALG_TO_SUBTLE[alg]) {
     throw new JwsVerificationError(`Algoritmo JWS não suportado: ${String(alg)}`);
+  }
+  if (options.allowedAlgs && !options.allowedAlgs.includes(alg)) {
+    throw new JwsVerificationError(`Algoritmo JWS não permitido neste contexto: ${alg}`);
+  }
+  if (options.expectedKid !== undefined && header['kid'] !== options.expectedKid) {
+    throw new JwsVerificationError(`kid do JWS não confere com o esperado: ${String(header['kid'])}`);
   }
   const algSpec = ALG_TO_SUBTLE[alg]!;
 

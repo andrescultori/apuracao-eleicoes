@@ -1,19 +1,41 @@
+import { TSE_CONFIG } from './tseConfig';
 import type { OfficeKey, Turn } from './types';
 
 /**
- * Parser do arquivo EA11 (catálogo "ele-c.json" — configuração de eleições).
+ * Parser do arquivo EA11 (catálogo "ele-c.jws" — configuração de eleições).
  *
- * Campos confirmados via texto extraído da especificação oficial (ver nota de
- * fontes em tseConfig.ts): `dg` (data de geração), `hg` (hora), `idg`
- * (identificador de geração, usado também como ETag), `f` (fase: s|o),
- * `arq[]` (tipos de arquivo disponíveis e seus diretórios-base), `pl[]`
- * (pleitos), cada um com `e[]` (eleições): `cd` (código), `cdt2` (código do
- * 2º turno, quando houver), `sqele`, `nm` (nome), `t` (turno), `tp` (tipo),
- * `abr[]` (abrangências: `cd`, mais `mu[]`/`cp[]` quando aplicável).
+ * CORRIGIDO em 29/09/2026 a partir de um catálogo real do simulado (gerado em
+ * 14/09/2026, fornecido pelo usuário via `curl`/navegação real) — dois pontos
+ * importantes que a versão anterior deste arquivo tinha errado:
+ *
+ *  1. TODO campo numérico do catálogo real vem como STRING (`"cd":"21270"`,
+ *     `"t":"1"`, `"cdt2":""` quando não há 2º turno) — o parser anterior exigia
+ *     `number` e lançava `Ea11ParseError` em cima de dados reais. Corrigido:
+ *     coage string→number nos campos que este código usa para comparação/URL
+ *     (`cd`, `t`, `tp`, `cdt2`, `idg`, `sqele`, `cdpr`), tratando `""` como
+ *     ausente.
+ *  2. `abr[]` NÃO lista UFs — tem um único item `{"cd":"br","cp":[...]}`.
+ *     Quem diz quais CARGOS pertencem a cada eleição é `cp[].cd` (código de
+ *     cargo, o mesmo de `TSE_CONFIG.officeCargoCode`), não uma lista de UFs.
+ *     Ex.: eleição "Ordinária Estadual" tem `cp` com `cd` 3,5,6,7,8
+ *     (Governador, Senador, Dep. Federal, Dep. Estadual, Dep. Distrital) — a
+ *     mesma eleição vale para as 27 UFs, o catálogo não segmenta por estado.
+ *     `resolveElection` antes tentava casar `uf` contra `abr[].cd`, o que
+ *     nunca encontrava nada (`abr.cd` é sempre `"br"`) — todo cargo estadual
+ *     retornava `null`. Corrigido: casa por `cp[].cd`, com `tp` como conferência
+ *     cruzada (as duas condições precisam bater; se não bater, prefere não
+ *     resolver a arriscar).
  */
+
+export interface Ea11Cargo {
+  cd: number;
+  ds: string;
+  tp: number;
+}
 
 export interface Ea11Abrangencia {
   cd: string;
+  cp: Ea11Cargo[];
 }
 
 export interface Ea11Eleicao {
@@ -38,6 +60,13 @@ export interface Ea11Pleito {
 
 export interface Ea11Arquivo {
   tp: string;
+  /**
+   * Template de diretório publicado pelo próprio catálogo, com placeholders
+   * literais (`<base>`, `<ambiente>`, `<ciclo>`, `<cd_eleicao>`, `<uf>`,
+   * `<cd_pleito>`, `<municipio>`, `<zona>`, `<secao>`) — ver `tseConfig.ts`
+   * (`fillDirTemplate`), que resolve esses placeholders em vez de embutir o
+   * formato do caminho fixo no código.
+   */
   dir: string;
 }
 
@@ -56,10 +85,31 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
 }
 
+/** Converte um campo que pode vir como string ou number para number; "" ou ausente -> undefined. */
+function coerceOptionalNumber(v: unknown): number | undefined {
+  if (v === undefined || v === null || v === '') return undefined;
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') {
+    const n = Number(v);
+    return Number.isNaN(n) ? undefined : n;
+  }
+  return undefined;
+}
+
+/** Como `coerceOptionalNumber`, mas exige um valor válido (lança se ausente/inválido). */
+function coerceRequiredNumber(v: unknown, fieldName: string): number {
+  const n = coerceOptionalNumber(v);
+  if (n === undefined) {
+    throw new Ea11ParseError(`EA11: campo "${fieldName}" ausente ou não numérico`);
+  }
+  return n;
+}
+
 /**
- * Valida e converte o JSON bruto do EA11 para `Ea11Catalog`. Lança
- * `Ea11ParseError` para qualquer formato inesperado — nunca aceita um payload
- * parcialmente reconhecido como se fosse um catálogo válido.
+ * Valida e converte o JSON bruto do EA11 (já decodificado do JWS — ver
+ * jws.ts) para `Ea11Catalog`. Lança `Ea11ParseError` para qualquer formato
+ * inesperado — nunca aceita um payload parcialmente reconhecido como se fosse
+ * um catálogo válido.
  */
 export function parseEa11Catalog(raw: unknown): Ea11Catalog {
   if (!isRecord(raw) || !Array.isArray(raw['pl'])) {
@@ -70,33 +120,37 @@ export function parseEa11Catalog(raw: unknown): Ea11Catalog {
       throw new Ea11ParseError('EA11: pleito com formato inesperado');
     }
     const e = pleito['e'].map((eleicao): Ea11Eleicao => {
-      if (
-        !isRecord(eleicao) ||
-        typeof eleicao['cd'] !== 'number' ||
-        typeof eleicao['t'] !== 'number' ||
-        typeof eleicao['tp'] !== 'number' ||
-        !Array.isArray(eleicao['abr'])
-      ) {
+      if (!isRecord(eleicao) || !Array.isArray(eleicao['abr'])) {
         throw new Ea11ParseError('EA11: eleição com formato inesperado');
       }
       return {
-        cd: eleicao['cd'],
-        cdt2: typeof eleicao['cdt2'] === 'number' ? eleicao['cdt2'] : undefined,
-        sqele: typeof eleicao['sqele'] === 'number' ? eleicao['sqele'] : undefined,
+        cd: coerceRequiredNumber(eleicao['cd'], 'e[].cd'),
+        cdt2: coerceOptionalNumber(eleicao['cdt2']),
+        sqele: coerceOptionalNumber(eleicao['sqele']),
         nm: typeof eleicao['nm'] === 'string' ? eleicao['nm'] : '',
-        t: eleicao['t'] as Turn,
-        tp: eleicao['tp'],
+        t: coerceRequiredNumber(eleicao['t'], 'e[].t') as Turn,
+        tp: coerceRequiredNumber(eleicao['tp'], 'e[].tp'),
         abr: eleicao['abr'].map((a): Ea11Abrangencia => {
           if (!isRecord(a) || typeof a['cd'] !== 'string') {
             throw new Ea11ParseError('EA11: abrangência com formato inesperado');
           }
-          return { cd: a['cd'] };
+          const cp = Array.isArray(a['cp'])
+            ? a['cp'].map((c): Ea11Cargo => {
+                if (!isRecord(c)) throw new Ea11ParseError('EA11: cargo (cp[]) com formato inesperado');
+                return {
+                  cd: coerceRequiredNumber(c['cd'], 'cp[].cd'),
+                  ds: typeof c['ds'] === 'string' ? c['ds'] : '',
+                  tp: coerceRequiredNumber(c['tp'], 'cp[].tp'),
+                };
+              })
+            : [];
+          return { cd: a['cd'], cp };
         }),
       };
     });
     return {
-      cd: typeof pleito['cd'] === 'number' ? pleito['cd'] : 0,
-      cdpr: typeof pleito['cdpr'] === 'number' ? pleito['cdpr'] : undefined,
+      cd: coerceOptionalNumber(pleito['cd']) ?? 0,
+      cdpr: coerceOptionalNumber(pleito['cdpr']),
       c: pleito['c'],
       dt: typeof pleito['dt'] === 'string' ? pleito['dt'] : '',
       dtlim: typeof pleito['dtlim'] === 'string' ? pleito['dtlim'] : undefined,
@@ -106,7 +160,7 @@ export function parseEa11Catalog(raw: unknown): Ea11Catalog {
   return {
     dg: typeof raw['dg'] === 'string' ? raw['dg'] : '',
     hg: typeof raw['hg'] === 'string' ? raw['hg'] : '',
-    idg: typeof raw['idg'] === 'number' ? raw['idg'] : undefined,
+    idg: coerceOptionalNumber(raw['idg']),
     f: raw['f'] === 's' ? 's' : 'o',
     arq: Array.isArray(raw['arq'])
       ? raw['arq']
@@ -118,27 +172,17 @@ export function parseEa11Catalog(raw: unknown): Ea11Catalog {
 }
 
 /**
- * Tipos de eleição (`tp`) confirmados via especificação oficial do EA11.
+ * Tipos de eleição (`tp`) confirmados via catálogo real do EA11.
  *
- * CONFIRMADO ao vivo em 28/09/2026 (catálogo `ele-c.json` do simulado — ver
- * nota de fontes em tseConfig.ts): ao contrário do que a divisão constitucional
- * "federal vs. estadual" sugeriria, o TSE agrupa Presidente SOZINHO na eleição
- * "Ordinária Federal" (`ele=21270` no simulado), enquanto Governador, Senador,
- * Deputado Federal e Deputado Estadual ficam TODOS juntos na eleição "Ordinária
- * Estadual" (`ele=21272`) — porque Senador e Deputado Federal, embora sejam
- * cargos federais, são apurados por votação e totalização de âmbito estadual,
- * igual a Governador e Deputado Estadual. Isso corrige uma suposição anterior
- * (que agrupava Presidente+Senador+Dep. Federal) que nunca havia sido
- * observada ao vivo.
+ * Só Presidente é "federal ordinária" (`tp=8`); Governador, Senador, Deputado
+ * Federal e Deputado Estadual são todos "estadual ordinária" (`tp=1`) — mesmo
+ * Senador e Deputado Federal sendo cargos federais, a totalização deles é de
+ * âmbito estadual, igual a Governador/Deputado Estadual.
  */
 export const TIPO_ELEICAO_ESTADUAL_ORDINARIA = 1;
 export const TIPO_ELEICAO_FEDERAL_ORDINARIA = 8;
 
-/**
- * A que `tp` de eleição pertence cada cargo — ver nota de confirmação acima.
- * Só Presidente é "federal ordinária"; os demais (inclusive Senador e Deputado
- * Federal) são "estadual ordinária".
- */
+/** A que `tp` de eleição pertence cada cargo — ver nota de confirmação acima. */
 export function tipoEleicaoForOffice(office: OfficeKey): number {
   if (office === 'presidente') return TIPO_ELEICAO_FEDERAL_ORDINARIA;
   return TIPO_ELEICAO_ESTADUAL_ORDINARIA;
@@ -149,35 +193,33 @@ export interface ResolvedElection {
   cdEleicao: number;
   /** Código de eleição do 2º turno, se este pleito tiver segundo turno. */
   cdEleicaoTurno2: number | null;
-  abrangencia: Ea11Abrangencia | null;
 }
 
 /**
  * Localiza, no catálogo já carregado, a eleição correspondente a um cargo e
- * turno, restrita a uma UF quando o cargo não for de abrangência nacional.
- * Nunca usa um código fixo — sempre lê o catálogo publicado pelo TSE.
+ * turno. UF NÃO entra aqui — o catálogo real não segmenta eleições por UF
+ * (a mesma eleição "estadual" vale para as 27 UFs); UF só importa depois, na
+ * hora de montar a URL do arquivo de resultado (`TSE_CONFIG.buildResultPath`).
+ *
+ * O casamento é por `cp[].cd` (código de cargo dentro da abrangência), com
+ * `tp` da eleição como conferência cruzada: as duas condições precisam bater
+ * — se não baterem, prefere devolver `null` (o app mostra "indisponível") a
+ * arriscar um resultado errado.
  */
-export function resolveElection(
-  catalog: Ea11Catalog,
-  office: OfficeKey,
-  turn: Turn,
-  uf: string | null,
-): ResolvedElection | null {
+export function resolveElection(catalog: Ea11Catalog, office: OfficeKey, turn: Turn): ResolvedElection | null {
   const tipo = tipoEleicaoForOffice(office);
+  const cargoCode = TSE_CONFIG.officeCargoCode[office];
   for (const pleito of catalog.pl) {
     for (const eleicao of pleito.e) {
       if (eleicao.tp !== tipo) continue;
       if (turn === 1 && eleicao.t !== 1) continue;
       if (turn === 2 && eleicao.t !== 1 && eleicao.t !== 2) continue;
-      const abrangencia = uf
-        ? (eleicao.abr.find((a) => a.cd.toUpperCase() === uf.toUpperCase()) ?? null)
-        : (eleicao.abr[0] ?? null);
-      if (uf && !abrangencia) continue;
+      const hasCargo = eleicao.abr.some((a) => a.cp.some((c) => c.cd === cargoCode));
+      if (!hasCargo) continue;
       return {
         ciclo: pleito.c,
         cdEleicao: eleicao.cd,
         cdEleicaoTurno2: eleicao.cdt2 ?? null,
-        abrangencia,
       };
     }
   }
