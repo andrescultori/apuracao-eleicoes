@@ -1,6 +1,6 @@
 import { parseEa11Catalog, resolveElection, type Ea11Catalog } from './ea11';
 import { RequestQueue } from './requestQueue';
-import { padCode, TSE_CONFIG, type TseEnvKey } from './tseConfig';
+import { TSE_CONFIG, type TseEnvKey } from './tseConfig';
 import type {
   CandidateResult,
   DataProvider,
@@ -16,68 +16,83 @@ import type {
  * Provedor real de dados do TSE.
  *
  * O que já funciona de ponta a ponta: busca e faz o parsing do catálogo de
- * eleições (EA11), e resolve dinamicamente o código de eleição/ciclo de cada
- * cargo e UF a partir dele (nunca por um código fixo — ver ea11.ts).
+ * eleições (EA11), resolve dinamicamente o código de eleição de cada cargo/UF
+ * a partir dele (nunca por um código fixo — ver ea11.ts), e monta a URL real
+ * do arquivo de resultado (EA20) com o código de cargo confirmado (ver
+ * `TSE_CONFIG.officeCargoCode`).
  *
  * O que ainda NÃO é possível concluir, e por isso `getResults`/`getCandidates`
- * devolvem honestamente "unconfigured": construir a URL do arquivo de
- * resultado (EA10/EA20) também exige o código de cargo do TSE por OfficeKey,
- * que não pôde ser confirmado na documentação disponível nesta sessão (ver
- * `TSE_CONFIG.officeCargoCode` em tseConfig.ts). Assim que esse código for
- * confirmado e preenchido lá, este provedor passa a buscar e (após a
- * verificação de integridade — ver jws.ts) exibir os resultados reais, sem
- * precisar de nenhuma outra mudança estrutural aqui.
+ * continuam devolvendo honestamente "unconfigured" mesmo depois de um fetch
+ * bem-sucedido: falta a chave pública real do TSE para verificar a assinatura
+ * EdDSA do arquivo `.jws` (ver a nota completa em jws.ts — o Apêndice A lido
+ * do manual é só de desenvolvimento, "não válido para resultados oficiais").
+ * Sem essa verificação, os dados nunca são promovidos a "ready".
  */
 
 /**
- * Formato do payload esperado do arquivo EA20 (resultado unificado), com os
- * nomes de campo reconstruídos e validados contra amostras reais de JSON do
- * TSE (simulado 2026 e oficial 2024) — ver nota de fontes em tseConfig.ts.
- * Ainda assim, não é uma transcrição literal da especificação oficial em PDF
- * (não localizada para o EA20 nesta sessão), por isso o tipo é tratado como
- * best-effort e revisado assim que a especificação puder ser confirmada.
+ * Formato real do payload do arquivo EA20 (resultado unificado), confirmado
+ * ao vivo em 28/09/2026 a partir de um arquivo real do simulado
+ * (`br-c0001-e021270-u.jws`, Presidente/Brasil) — ver nota de fontes em
+ * tseConfig.ts. Todos os valores vêm como STRING no JSON original, inclusive
+ * números e percentuais (que usam vírgula decimal, ex.: "7,566106610").
  */
+export interface Ea20Vice {
+  tp: string;
+  sqcand: string;
+  nm: string;
+  nmu: string;
+  sgp: string;
+}
+
 export interface Ea20Candidato {
   n: string; // número de urna
-  sqcand: number;
+  sqcand: string; // identificador estável do candidato
   nm: string;
   nmu: string; // nome de urna
-  vap: number; // votos
-  pvapn: number; // percentual de votos (decimal)
+  dvt?: string; // destinação do voto: "Válido" | "Anulado" | "Anulado sub judice"
+  vap: string; // votos (string numérica)
+  pvapn: string; // percentual de votos, decimal com vírgula (ex.: "7,566106610")
+  vs?: Ea20Vice[];
 }
 
 export interface Ea20Partido {
-  n: number;
-  sg: string;
+  n: string;
+  sg: string; // sigla do partido
   nm: string;
   cand: Ea20Candidato[];
 }
 
 export interface Ea20Agrupamento {
-  n: number;
+  n: string;
   nm: string;
-  tp: 'i' | 'f' | 'c';
+  tp: string;
   par: Ea20Partido[];
 }
 
 export interface Ea20Cargo {
-  cd: string;
-  v: { tv: number; vv: number };
+  cd: string; // código de cargo (mesmo de TSE_CONFIG.officeCargoCode, como string)
   agr: Ea20Agrupamento[];
 }
 
 export interface Ea20Payload {
-  ele: number;
-  t: Turn;
+  ele: string;
+  t: string;
   dg: string;
   hg: string;
-  idg?: number;
+  idg?: string;
+  /** Totais de voto da corrida inteira — não por cargo (cada arquivo já é de um único cargo). */
+  v: { tv: string; vv: string };
   carg: Ea20Cargo[];
 }
 
+/** Converte "7,566106610" (vírgula decimal) para 7.566106610. */
+function parsePtDecimal(s: string): number {
+  return Number(s.replace(',', '.'));
+}
+
 /**
- * Converte o payload (já verificado) do EA20 para o modelo interno da
- * aplicação. Função pura, testável com fixtures.
+ * Converte o payload (já verificado — ver jws.ts) do EA20 para o modelo
+ * interno da aplicação. Função pura, testável com fixtures.
  */
 export function parseEa20Payload(payload: Ea20Payload, office: OfficeKey, state: string): ElectionResults {
   const cargo = payload.carg[0];
@@ -88,7 +103,7 @@ export function parseEa20Payload(payload: Ea20Payload, office: OfficeKey, state:
     for (const par of agr.par) {
       for (const c of par.cand) {
         candidates.push({
-          id: String(c.sqcand),
+          id: c.sqcand,
           name: c.nm,
           ballotName: c.nmu,
           number: c.n,
@@ -96,8 +111,8 @@ export function parseEa20Payload(payload: Ea20Payload, office: OfficeKey, state:
           state,
           office,
           finalShare: 0,
-          votes: c.vap,
-          percentage: c.pvapn,
+          votes: Number(c.vap),
+          percentage: parsePtDecimal(c.pvapn),
           position: 0,
         });
       }
@@ -110,8 +125,8 @@ export function parseEa20Payload(payload: Ea20Payload, office: OfficeKey, state:
 
   return {
     candidates,
-    totalValid: cargo.v.vv,
-    totalApurados: cargo.v.tv,
+    totalValid: Number(payload.v.vv),
+    totalApurados: Number(payload.v.tv),
   };
 }
 
@@ -120,6 +135,7 @@ interface ResultCacheRecord {
   data: ElectionResults | null;
   fetchedAt: number | null;
   fetching: boolean;
+  lastAttemptAt: number | null;
 }
 
 interface CatalogState {
@@ -131,14 +147,15 @@ interface CatalogState {
 }
 
 /**
- * Intervalo mínimo entre tentativas de rebuscar o catálogo depois de uma
- * falha. Sem isso, cada chamada de `getResults` (potencialmente uma por
- * renderização) tentaria de novo imediatamente — o que além de martelar o
- * servidor do TSE, também torna o estado "error" praticamente inobservável
- * pelo chamador (a nova tentativa já teria começado antes de ele conseguir
- * ler o status).
+ * Intervalo mínimo entre tentativas de rebuscar o catálogo (ou um arquivo de
+ * resultado) depois de uma tentativa anterior. Sem isso, cada chamada de
+ * `getResults` (potencialmente uma por renderização) tentaria de novo
+ * imediatamente — o que além de martelar o servidor do TSE, também torna
+ * qualquer status que não seja "loading" praticamente inobservável pelo
+ * chamador (a nova tentativa já teria começado antes de ele conseguir ler o
+ * status).
  */
-const CATALOG_RETRY_COOLDOWN_MS = 5000;
+const RETRY_COOLDOWN_MS = 5000;
 
 export function createTseDataProvider(getEnv: () => TseEnvKey, queue: RequestQueue = new RequestQueue()): DataProvider {
   const resultsCache = new Map<string, ResultCacheRecord>();
@@ -152,7 +169,13 @@ export function createTseDataProvider(getEnv: () => TseEnvKey, queue: RequestQue
   function currentEntry(key: string): ResultCacheRecord {
     const existing = resultsCache.get(key);
     if (existing) return existing;
-    const fresh: ResultCacheRecord = { status: 'unconfigured', data: null, fetchedAt: null, fetching: false };
+    const fresh: ResultCacheRecord = {
+      status: 'unconfigured',
+      data: null,
+      fetchedAt: null,
+      fetching: false,
+      lastAttemptAt: null,
+    };
     resultsCache.set(key, fresh);
     return fresh;
   }
@@ -176,7 +199,7 @@ export function createTseDataProvider(getEnv: () => TseEnvKey, queue: RequestQue
       catalogEnv = env;
     }
     if (catalogState.catalog || catalogState.fetching) return catalogState;
-    if (catalogState.lastAttemptAt !== null && Date.now() - catalogState.lastAttemptAt < CATALOG_RETRY_COOLDOWN_MS) {
+    if (catalogState.lastAttemptAt !== null && Date.now() - catalogState.lastAttemptAt < RETRY_COOLDOWN_MS) {
       return catalogState;
     }
 
@@ -191,6 +214,10 @@ export function createTseDataProvider(getEnv: () => TseEnvKey, queue: RequestQue
           catalogState.status = 'error';
           return;
         }
+        // TODO(tse-integracao): res.body aqui é o JWS compacto do ele-c (string),
+        // não JSON já decodificado — falta decodificar e verificar a assinatura
+        // (ver jws.ts) antes de confiar no catálogo. Sem a chave pública real do
+        // TSE, isso ainda não está ligado; ver nota de fontes em jws.ts.
         try {
           catalogState.catalog = parseEa11Catalog(res.body);
           catalogState.status = 'ready';
@@ -229,21 +256,13 @@ export function createTseDataProvider(getEnv: () => TseEnvKey, queue: RequestQue
     }
 
     const cdEleicao = turn === 2 && resolved.cdEleicaoTurno2 ? resolved.cdEleicaoTurno2 : resolved.cdEleicao;
-    const url = TSE_CONFIG.buildResultPath('EA20', getEnv(), {
-      office,
-      uf,
-      ciclo: resolved.ciclo,
-      cdEleicaoPadded: padCode(cdEleicao, 6),
-    });
-    if (!url) {
-      // Código de cargo do TSE ainda não confirmado (ver TSE_CONFIG.officeCargoCode) —
-      // o caminho não pode ser construído com segurança. Nunca adivinhar.
-      if (!entry.data) entry.status = 'unconfigured';
-      return;
-    }
+    const url = TSE_CONFIG.buildResultPath('EA20', getEnv(), { office, uf, cdEleicao });
 
     if (entry.fetching) return;
+    if (entry.lastAttemptAt !== null && Date.now() - entry.lastAttemptAt < RETRY_COOLDOWN_MS) return;
+
     entry.fetching = true;
+    entry.lastAttemptAt = Date.now();
     if (!entry.data) entry.status = 'loading';
     queue
       .fetchJson(url)
@@ -253,12 +272,14 @@ export function createTseDataProvider(getEnv: () => TseEnvKey, queue: RequestQue
           if (!entry.data) entry.status = 'error';
           return;
         }
-        // TODO(tse-integracao): antes de aceitar `res.body` como válido, verificar a
-        // integridade do arquivo (ver jws.ts e a nota sobre o mecanismo de assinatura,
-        // ainda não confirmado, no topo de tseConfig.ts). Sem essa confirmação, os
-        // dados nunca devem ser promovidos a "ready" — por isso o status permanece
-        // inalterado aqui até essa etapa ser implementada com uma chave/certificado
-        // real.
+        // res.body é o JWS compacto (string) do EA20 — confirmado ao vivo como
+        // EdDSA (Ed25519), ver jws.ts. TODO(tse-integracao): falta a chave
+        // pública real do TSE para chamar verifyJws() aqui; o Apêndice A lido
+        // do manual é só de desenvolvimento ("não válido para resultados
+        // oficiais"), e o apêndice de produção ainda não foi lido. Sem essa
+        // verificação, o arquivo já obtido NUNCA deve ser promovido a "ready"
+        // — fica "unconfigured" mesmo tendo sido buscado com sucesso.
+        if (!entry.data) entry.status = 'unconfigured';
       })
       .catch(() => {
         entry.fetching = false;

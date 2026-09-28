@@ -77,33 +77,43 @@ never hardcodes one. That part already works end to end (a request queue with
 concurrency 1, caching via `ETag`/`If-None-Match`, exponential backoff on
 network errors, never retrying a URL that returned 404).
 
-What's **still not possible to finish**, documented as an explicit TODO in
-the code (`src/data/tseConfig.ts`, `src/data/tseDataProvider.ts`) and never
-worked around with a guessed value:
+On 09/28/2026, during an official simulation window, a session with real
+browser access (Claude in Chrome) manually navigated the simulation's own
+official app and confirmed live two things that used to be guesswork:
 
-- **The TSE's office code** for President/Governor/Senator/Federal
-  Deputy/State Deputy, needed to build the result-file URL (EA10/EA20).
-  Without it, "Official data" mode honestly shows "Data unavailable" instead
-  of risking a wrong URL.
-- **The file-integrity verification mechanism.** The TSE mentions a digital
-  certificate (`cert-e<ELECTION>-a.cer`) tied to each election, but we found
-  no confirmation, across the sources we could check, that the result JSON
-  files actually ship as a signed JWS envelope (the name assumed by this
-  project's original spec) — it could be an X.509-certificate-based
-  mechanism instead, or the relevant documentation page may simply have been
-  unreachable during this development session (the `tse.jus.br` domain was
-  blocked by that environment's network policy). Until this is confirmed, no
-  data is ever promoted to "ready" — see `src/data/jws.ts`, which already
-  implements and tests generic JWS verification, ready to be wired in once
-  the real mechanism is confirmed.
+- **The TSE's office code** — confirmed against the official documentation
+  ("Instruções para download", section 5) and already filled into
+  `TSE_CONFIG.officeCargoCode`: President `0001`, Governor `0003`, Senator
+  `0005`, Federal Deputy `0006`, State Deputy `0007`. The result-file URL
+  (EA20) is now built end to end.
+- **The signature mechanism** — the files really do ship as a JWS envelope,
+  but signed with **EdDSA (Ed25519)**, not RS256/ES256 as previously
+  suspected. `src/data/jws.ts` already verifies this algorithm (tested with a
+  locally generated key, both a valid and a tampered signature).
 
-This research was done through verifiable secondary sources (text extracted
-from the official specification PDFs, and real JSON samples published in
-public repositories), since direct access to `tse.jus.br` wasn't available in
-the development environment. **Before relying on this for a real election**,
-confirm the points above directly against the official documentation:
+What's **still missing**, documented as an explicit TODO in the code
+(`src/data/tseConfig.ts`, `src/data/tseDataProvider.ts`, `src/data/jws.ts`)
+and never worked around with a guessed value:
+
+- **The TSE's real public key.** The official verification manual publishes
+  the key as both JWK and X.509, but the appendix read so far (Appendix A) is
+  explicitly a **development** key — "not valid for official results".
+  Without the production key, even a successfully fetched `.jws` file is
+  never promoted to "ready": the app keeps honestly showing "Data unavailable"
+  instead of displaying an unverified value.
+- **The production URL pattern.** Confirmed live only for the simulation
+  environment; the official environment (`resultados.tse.jus.br/oficial`) is
+  still just a symmetric inference, never directly observed (production only
+  opens with pleito 3220, on 10/04/2026, with candidates not yet finalized).
+
+This research combined verifiable secondary sources with live manual
+browsing, since direct access to `tse.jus.br` isn't available in the
+environment this code normally runs in. **Before relying on this for a real
+election**, confirm the points above directly against the official
+documentation:
 
 - [TSE — technical information on results disclosure](https://www.tse.jus.br/eleicoes/informacoes-tecnicas-sobre-a-divulgacao-de-resultados) (Portuguese only)
+- [JWS file verification manual](https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados/manual-verificacao-jws) (Portuguese only)
 
 ## Architecture
 

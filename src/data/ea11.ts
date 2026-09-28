@@ -119,22 +119,28 @@ export function parseEa11Catalog(raw: unknown): Ea11Catalog {
 
 /**
  * Tipos de eleição (`tp`) confirmados via especificação oficial do EA11.
- * A eleição federal (Presidente, Senador, Deputado Federal) e a eleição
- * estadual (Governador, Deputado Estadual) são votadas juntas no mesmo pleito
- * geral, mas o TSE as trata como duas "eleições" (`e[]`) distintas dentro dele.
+ *
+ * CONFIRMADO ao vivo em 28/09/2026 (catálogo `ele-c.json` do simulado — ver
+ * nota de fontes em tseConfig.ts): ao contrário do que a divisão constitucional
+ * "federal vs. estadual" sugeriria, o TSE agrupa Presidente SOZINHO na eleição
+ * "Ordinária Federal" (`ele=21270` no simulado), enquanto Governador, Senador,
+ * Deputado Federal e Deputado Estadual ficam TODOS juntos na eleição "Ordinária
+ * Estadual" (`ele=21272`) — porque Senador e Deputado Federal, embora sejam
+ * cargos federais, são apurados por votação e totalização de âmbito estadual,
+ * igual a Governador e Deputado Estadual. Isso corrige uma suposição anterior
+ * (que agrupava Presidente+Senador+Dep. Federal) que nunca havia sido
+ * observada ao vivo.
  */
 export const TIPO_ELEICAO_ESTADUAL_ORDINARIA = 1;
 export const TIPO_ELEICAO_FEDERAL_ORDINARIA = 8;
 
 /**
- * A que `tp` de eleição pertence cada cargo. Mapeamento derivado da divisão
- * federal/estadual da legislação eleitoral brasileira (não é um código
- * TSE-específico inventado) combinada com os tipos `tp` confirmados acima.
+ * A que `tp` de eleição pertence cada cargo — ver nota de confirmação acima.
+ * Só Presidente é "federal ordinária"; os demais (inclusive Senador e Deputado
+ * Federal) são "estadual ordinária".
  */
 export function tipoEleicaoForOffice(office: OfficeKey): number {
-  if (office === 'presidente' || office === 'senador' || office === 'deputadoFederal') {
-    return TIPO_ELEICAO_FEDERAL_ORDINARIA;
-  }
+  if (office === 'presidente') return TIPO_ELEICAO_FEDERAL_ORDINARIA;
   return TIPO_ELEICAO_ESTADUAL_ORDINARIA;
 }
 

@@ -21,6 +21,16 @@ async function signCompactJws(payload: unknown, privateKey: CryptoKey): Promise<
   return `${headerB64}.${payloadB64}.${signatureB64}`;
 }
 
+async function signCompactJwsEdDSA(payload: unknown, privateKey: CryptoKey, kid = 'test-kid'): Promise<string> {
+  const header = { alg: 'EdDSA', kid, typ: 'JOSE' };
+  const headerB64 = base64UrlEncodeString(JSON.stringify(header));
+  const payloadB64 = base64UrlEncodeString(JSON.stringify(payload));
+  const signingInput = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
+  const signature = await crypto.subtle.sign({ name: 'Ed25519' }, privateKey, signingInput);
+  const signatureB64 = base64UrlEncode(new Uint8Array(signature));
+  return `${headerB64}.${payloadB64}.${signatureB64}`;
+}
+
 describe('verifyJws', () => {
   let publicKey: CryptoKey;
   let privateKey: CryptoKey;
@@ -73,5 +83,48 @@ describe('verifyJws', () => {
     const header = base64UrlEncodeString(JSON.stringify({ alg: 'none' }));
     const payload = base64UrlEncodeString(JSON.stringify({ a: 1 }));
     await expect(verifyJws(`${header}.${payload}.x`, publicKey)).rejects.toThrow(JwsVerificationError);
+  });
+});
+
+// EdDSA (Ed25519) é o algoritmo confirmado ao vivo nos arquivos reais do TSE
+// (ver nota de fontes no topo de jws.ts) — cobertura equivalente à do RS256 acima.
+describe('verifyJws — EdDSA (Ed25519), algoritmo real do TSE', () => {
+  let publicKey: CryptoKey;
+  let privateKey: CryptoKey;
+  let otherPublicKey: CryptoKey;
+
+  beforeAll(async () => {
+    const keyPair = await crypto.subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify']);
+    publicKey = keyPair.publicKey;
+    privateKey = keyPair.privateKey;
+
+    const otherPair = await crypto.subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify']);
+    otherPublicKey = otherPair.publicKey;
+  });
+
+  it('aceita um JWS EdDSA corretamente assinado e devolve o payload decodificado', async () => {
+    const compact = await signCompactJwsEdDSA(
+      { ele: '21270', vap: '6644798' },
+      privateKey,
+      'pEGrlis0i8vO2Bz7Ergwr0MnKfg',
+    );
+    const decoded = await verifyJws(compact, publicKey);
+    expect(decoded.payload).toEqual({ ele: '21270', vap: '6644798' });
+    expect(decoded.header['alg']).toBe('EdDSA');
+    expect(decoded.header['kid']).toBe('pEGrlis0i8vO2Bz7Ergwr0MnKfg');
+  });
+
+  it('rejeita um payload EdDSA adulterado depois da assinatura', async () => {
+    const compact = await signCompactJwsEdDSA({ vap: '100' }, privateKey);
+    const [headerB64, , signatureB64] = compact.split('.');
+    const tamperedPayloadB64 = base64UrlEncodeString(JSON.stringify({ vap: '999999999' }));
+    const tampered = `${headerB64}.${tamperedPayloadB64}.${signatureB64}`;
+
+    await expect(verifyJws(tampered, publicKey)).rejects.toThrow(JwsVerificationError);
+  });
+
+  it('rejeita um JWS EdDSA verificado com a chave pública errada', async () => {
+    const compact = await signCompactJwsEdDSA({ vap: '1' }, privateKey);
+    await expect(verifyJws(compact, otherPublicKey)).rejects.toThrow(JwsVerificationError);
   });
 });

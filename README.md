@@ -78,34 +78,42 @@ nunca usa um código fixo. Isso já funciona de ponta a ponta (fila de
 requisições com concorrência 1, cache com `ETag`/`If-None-Match`, backoff
 exponencial em falha de rede, nunca repetir uma URL que respondeu 404).
 
-O que **ainda não é possível concluir**, documentado como TODO explícito no
-código (`src/data/tseConfig.ts`, `src/data/tseDataProvider.ts`) e nunca
-contornado com valores inventados:
+Em 28/09/2026, dentro da janela oficial de simulado, uma sessão com acesso
+real ao navegador (Claude in Chrome) navegou manualmente pelo app oficial do
+simulado e confirmou ao vivo dois pontos que antes eram só suposição:
 
-- **Código de cargo do TSE** por Presidente/Governador/Senador/Deputado
-  Federal/Deputado Estadual, necessário para montar a URL do arquivo de
-  resultado (EA10/EA20). Sem ele, o modo "Dados oficiais" mostra honestamente
-  "Dados indisponíveis" em vez de arriscar uma URL incorreta.
-- **Mecanismo de verificação de integridade dos arquivos.** O TSE cita um
-  certificado digital (`cert-e<ELEICAO>-a.cer`) associado a cada eleição, mas
-  não encontramos, nas fontes consultadas, confirmação de que os arquivos
-  JSON de resultado venham como um envelope JWS assinado (nome citado na
-  especificação original deste projeto) — pode ser um mecanismo baseado em
-  certificado X.509 diferente, ou o material relevante pode estar em uma
-  página que não pôde ser acessada nesta sessão de desenvolvimento (o domínio
-  `tse.jus.br` estava bloqueado pela política de rede do ambiente usado).
-  Enquanto isso não for confirmado, nenhum dado é promovido a "pronto" — ver
-  `src/data/jws.ts`, que já implementa e testa a verificação de assinatura
-  JWS de forma genérica, pronta para ser ligada assim que o mecanismo real
-  for confirmado.
+- **Código de cargo do TSE** — confirmado na documentação oficial
+  ("Instruções para download", seção 5) e já preenchido em
+  `TSE_CONFIG.officeCargoCode`: Presidente `0001`, Governador `0003`, Senador
+  `0005`, Deputado Federal `0006`, Deputado Estadual `0007`. A URL do arquivo
+  de resultado (EA20) já é construída de ponta a ponta.
+- **Mecanismo de assinatura** — os arquivos vêm mesmo como um envelope JWS,
+  mas com algoritmo **EdDSA (Ed25519)**, não RS256/ES256 como se cogitava
+  antes. `src/data/jws.ts` já verifica esse algoritmo (testado com uma chave
+  gerada localmente, assinatura válida e adulterada).
 
-Essa pesquisa foi feita por fontes secundárias verificáveis (texto extraído
-dos PDFs oficiais de especificação e amostras de JSON reais, publicados em
-repositórios públicos), já que o acesso direto a `tse.jus.br` não estava
-disponível no ambiente de desenvolvimento. **Antes de usar isto em uma eleição
+O que **ainda falta**, documentado como TODO explícito no código
+(`src/data/tseConfig.ts`, `src/data/tseDataProvider.ts`, `src/data/jws.ts`) e
+nunca contornado com valores inventados:
+
+- **A chave pública real do TSE.** O manual oficial de verificação publica a
+  chave em JWK e X.509, mas o apêndice já lido (Apêndice A) é explicitamente
+  de **desenvolvimento** — "não válido para resultados oficiais". Sem a chave
+  de produção, mesmo um arquivo `.jws` buscado com sucesso nunca é promovido a
+  "pronto": o app continua mostrando honestamente "Dados indisponíveis" em vez
+  de exibir um dado não verificado.
+- **O padrão de URL em produção.** Confirmado ao vivo só para o ambiente de
+  simulado; o ambiente oficial (`resultados.tse.jus.br/oficial`) segue por
+  inferência simétrica, sem observação direta (a produção só abre com o
+  pleito 3220, em 04/10/2026, ainda sem candidatos definidos).
+
+Essa pesquisa foi feita por fontes secundárias verificáveis e por navegação
+manual ao vivo, já que o acesso direto a `tse.jus.br` não estava disponível no
+ambiente onde o código roda normalmente. **Antes de usar isto em uma eleição
 real**, confirme os pontos acima diretamente na documentação oficial:
 
 - [Informações técnicas sobre a divulgação de resultados](https://www.tse.jus.br/eleicoes/informacoes-tecnicas-sobre-a-divulgacao-de-resultados)
+- [Manual de verificação dos arquivos JWS](https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados/manual-verificacao-jws)
 
 ## Arquitetura
 

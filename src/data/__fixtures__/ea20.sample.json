@@ -1,53 +1,65 @@
 {
-  "ele": 6257,
-  "t": 1,
-  "dg": "04/10/2026",
-  "hg": "20:00:00",
-  "idg": 42,
+  "ele": "21270",
+  "t": "1",
+  "f": "s",
+  "dg": "28/09/2026",
+  "hg": "15:51:39",
+  "idg": "173967397",
+  "v": { "tv": "1000", "vv": "950" },
   "carg": [
     {
       "cd": "0001",
-      "v": { "tv": 1000, "vv": 950 },
       "agr": [
         {
-          "n": 1,
-          "nm": "Agrupamento A",
+          "n": "60134540",
+          "nm": "PARTIDO 9996",
           "tp": "i",
           "par": [
             {
-              "n": 10,
-              "sg": "ABC",
-              "nm": "Partido ABC",
+              "n": "68",
+              "sg": "P 9996",
+              "nm": "PARTIDO 9996",
               "cand": [
                 {
-                  "n": "10",
-                  "sqcand": 1001,
-                  "nm": "Candidato Um",
-                  "nmu": "Cand. Um",
-                  "vap": 600,
-                  "pvapn": 63.16
+                  "n": "68",
+                  "sqcand": "41592494",
+                  "nm": "CANDIDATO 9987",
+                  "nmu": "CANDIDATO 9987",
+                  "dvt": "Válido",
+                  "vap": "600",
+                  "pvapn": "63,157894737",
+                  "vs": [
+                    {
+                      "tp": "v",
+                      "sqcand": "41592495",
+                      "nm": "CANDIDATO 9986",
+                      "nmu": "CANDIDATO 9986",
+                      "sgp": "P 9996"
+                    }
+                  ]
                 }
               ]
             }
           ]
         },
         {
-          "n": 2,
-          "nm": "Agrupamento B",
+          "n": "2",
+          "nm": "PARTIDO 9995",
           "tp": "i",
           "par": [
             {
-              "n": 20,
-              "sg": "XYZ",
-              "nm": "Partido XYZ",
+              "n": "45",
+              "sg": "P 9995",
+              "nm": "PARTIDO 9995",
               "cand": [
                 {
-                  "n": "20",
-                  "sqcand": 1002,
-                  "nm": "Candidato Dois",
-                  "nmu": "Cand. Dois",
-                  "vap": 350,
-                  "pvapn": 36.84
+                  "n": "45",
+                  "sqcand": "41592500",
+                  "nm": "CANDIDATO 9980",
+                  "nmu": "CANDIDATO 9980",
+                  "dvt": "Válido",
+                  "vap": "350",
+                  "pvapn": "36,842105263"
                 }
               ]
             }
