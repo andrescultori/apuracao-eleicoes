@@ -3,60 +3,68 @@ import type { OfficeKey } from './types';
 /**
  * Configuração da integração real com a divulgação de resultados do TSE.
  *
- * FONTES E METODOLOGIA (importante para quem for revisar/completar isto):
- * o domínio `tse.jus.br` (incluindo `www.tse.jus.br`, `resultados.tse.jus.br` e
- * `resultados-sim.tse.jus.br`) está bloqueado pela política de rede do ambiente
- * onde esta integração foi escrita (25/09/2026) — não foi possível abrir a
- * página oficial de informações técnicas nem as páginas de especificação de
- * cada arquivo diretamente. Os fatos abaixo foram obtidos por pesquisa cruzada
- * de fontes secundárias públicas e verificáveis:
- *   - texto extraído (pdftotext/OCR) dos PDFs oficiais de especificação EA10,
- *     EA11, EA12, EA14, EA15, EA16, EA18 e do "Instruções para download dos
- *     arquivos da Divulgação de resultados das Eleições 2026" (v1.0, 25/05/2026),
- *     encontrado no repositório público github.com/hugopaul/eleicoes-app;
- *   - amostras de JSON reais (simulado 2026 e oficial 2024) e um contrato de API
- *     de terceiros validado contra elas, no mesmo repositório
- *     (specs/001-backend-eleicoes-2026/spec.md);
- *   - dezenas de repositórios públicos no GitHub (2022–2026) que consomem esses
- *     arquivos em produção, confirmando o padrão de URL por convenção observada.
- * Antes de usar isto para uma eleição real, confirme diretamente na página
- * oficial (https://www.tse.jus.br/eleicoes/informacoes-tecnicas-sobre-a-divulgacao-de-resultados)
- * a partir de um ambiente sem esse bloqueio de rede — em especial os pontos
- * marcados "NÃO CONFIRMADO" abaixo.
+ * FONTES E METODOLOGIA:
+ * o domínio `tse.jus.br` estava bloqueado pela política de rede do ambiente de
+ * desenvolvimento original (25/09/2026), então a pesquisa inicial usou fontes
+ * secundárias (PDFs extraídos, amostras publicadas em repositórios GitHub).
+ * Em 28/09/2026 — dentro da janela oficial de simulado de 28–29/set —, uma
+ * sessão do Claude com acesso real ao navegador (Claude in Chrome) navegou
+ * manualmente pelo app oficial do simulado (`resultados-sim.tse.jus.br`) e
+ * confirmou ao vivo os pontos abaixo marcados [OBSERVADO], lendo
+ * `performance.getEntriesByType('resource')` e abrindo os arquivos que o
+ * próprio app já havia carregado — nunca adivinhando uma URL. [DOC] marca
+ * fatos publicados pelo TSE mas não vistos ao vivo (ex.: produção, que só abre
+ * com o pleito 3220 em 04/10/2026 e ainda não tem candidatos definidos).
  *
  * CONFIRMADO:
- *   Ambiente oficial:    https://resultados.tse.jus.br              (diretório "oficial")
- *   Ambiente simulado:   https://resultados-sim.tse.jus.br/simulado (diretório "simulado")
- *   NÃO usar https://cdn.tse.jus.br — não é a URL publicada pelo TSE (responde 403).
- *   Simulados agendados para 2026: 15–17/set, 22–24/set e 28–29/set.
- *   Limite de acesso: 100 requisições por IP por segundo (um 304 também conta);
- *     excedentes geram bloqueio de 10 min, renovado a cada nova tentativa durante
- *     o bloqueio. Muitos 404 seguidos também podem bloquear o IP — por isso o
- *     código nunca deve "chutar" uma URL sem antes descobrir o código real pelo
- *     catálogo EA11 (ele-c.json).
- *   Códigos de eleição citados para 2026: federal 6257, estadual 6259, distrital
- *     6261; pleito 3220 (04/10/2026). Em 24–25/09/2026 esses códigos ainda não
- *     apareciam no catálogo EA11 real (apenas em comunicados do TSE) — por isso
- *     este módulo NÃO os usa diretamente; a resolução é sempre feita consultando
- *     o catálogo EA11 em tempo real (ver `ea11.ts`), nunca por um código fixo.
+ *   [OBSERVADO] Base do simulado 2026: `https://resultados-sim.tse.jus.br/simulado/simulado2026`
+ *     (a raiz `/simulado` sozinha responde "Access Denied" da Akamai; o app
+ *     mora em `/simulado/simulado2026/app/index.html` e todos os arquivos de
+ *     dados saem desse mesmo prefixo).
+ *   [DOC, inferido por simetria — NÃO observado ao vivo] Base oficial:
+ *     `https://resultados.tse.jus.br/oficial`. Confirmar assim que a produção
+ *     abrir (pleito 3220, 04/10/2026).
+ *   NÃO usar `https://cdn.tse.jus.br` — não é a URL publicada pelo TSE (403).
+ *   [OBSERVADO] Catálogo de eleições: `<base>/comum/config/ele-c.jws`.
+ *   [OBSERVADO] Diretório por eleição: `<base>/<cdEleicao>/dados/<abrangencia>/`
+ *     (abrangencia = "br", sigla de UF em minúsculas, ou UF+município) — SEM
+ *     segmento de "ciclo" entre a base e o código de eleição, ao contrário do
+ *     que se supunha antes.
+ *   [OBSERVADO] Nome de arquivo: `<abrangencia>-c<cargo 4 díg>-e<eleição 6 díg>-u.jws`
+ *     (resultado unificado) — ex.: `br-c0001-e021270-u.jws`,
+ *     `sp61581-c0003-e021272-u.jws`. `-e.jws` no lugar de `-u.jws` = eleitos.
+ *     Config de municípios: `<cdEleicao>/config/mun-e<eleição 6 díg>-cm.jws`.
+ *   [DOC — PDF "Instruções para download", seção 5] Códigos de cargo (`c` no
+ *     nome do arquivo): Presidente 0001, Governador 0003, Senador 0005,
+ *     Deputado Federal 0006, Deputado Estadual 0007, Deputado Distrital 0008,
+ *     Prefeito 0011, Vereador 0013.
+ *   [OBSERVADO] O app consome `.jws` (envelope assinado); o mesmo arquivo
+ *     também existe em `.json` puro (sem assinatura), mas este módulo sempre
+ *     busca `.jws`, porque é o único que dá para verificar (ver jws.ts).
+ *   [OBSERVADO] Código de eleição (`ele`) É POR TIPO DE ELEIÇÃO, não fixo por
+ *     cargo — no simulado, `21270` = "Ordinária Federal" (só Presidente) e
+ *     `21272` = "Ordinária Estadual" (Governador, Senador, Dep. Federal,
+ *     Dep. Estadual, Dep. Distrital juntos). Os códigos citados para a eleição
+ *     real de 2026 (6257/6259/6261) NÃO valem no simulado e podem mudar até
+ *     lá — por isso nunca hardcodar: sempre ler do `ele-c.jws` (ver ea11.ts).
+ *   Limite de acesso: 100 requisições por IP por segundo (um 304 também
+ *     conta); excedentes geram bloqueio de 10 min, renovado a cada nova
+ *     tentativa durante o bloqueio. Muitos 404 seguidos também podem bloquear
+ *     o IP — por isso o fluxo é sempre `ele-c` → `mun-…-cm` → arquivo de
+ *     resultado, nunca uma URL adivinhada.
  *   Cache HTTP: ETag == idg (identificador de geração) do recurso; um GET com
  *     If-None-Match devolve 304 sem corpo.
- *   Autenticação: nenhuma fonte consultada menciona exigência de API key/token;
- *     todos os exemplos de código fazem GET simples. NÃO CONFIRMADO de forma
- *     explícita e documental.
+ *   Janela de simulado 2026: 15–17/set, 22–24/set e 28–29/set (esta última,
+ *     28–29/set, das 15h–17h de Brasília — os dados evoluem ao longo dela).
  *
  * NÃO CONFIRMADO:
- *   - "Manual de verificação dos arquivos JWS": não foi localizado em nenhuma
- *     fonte consultada. O EA11 lista um arquivo tipo "a" = certificado digital
- *     (`cert-e<ELEICAO>-a.cer`), descrito como usado para "validação da
- *     assinatura dos arquivos gerados para a eleição" — mas o mecanismo exato
- *     (JWS? PKCS#7/CMS destacado? outro?) não pôde ser confirmado. Ver jws.ts.
- *   - Os códigos de cargo (`cd` de `carg[]`/EA20, ou o `-c<cargo>-` do nome do
- *     arquivo) para cada OfficeKey (Presidente, Governador, Senador, Deputado
- *     Federal, Deputado Estadual). Por isso `OFFICE_CARGO_CODE` abaixo está
- *     vazio — nunca inventar esses números.
- *   - Os hrefs exatos da página raiz de informações técnicas (a página não pôde
- *     ser aberta neste ambiente).
+ *   - A chave pública real (JWK) para verificar a assinatura EdDSA dos
+ *     arquivos `.jws` — ver a nota completa em jws.ts. Sem ela, nenhum dado é
+ *     promovido a "ready" mesmo com o arquivo já em mãos.
+ *   - O padrão de base/URL em produção (`oficial`) — só inferido por simetria
+ *     com o simulado, nunca visto ao vivo (produção ainda não tem candidatos).
+ *   - Autenticação: nenhuma fonte consultada menciona exigência de API
+ *     key/token; os exemplos observados fazem GET simples.
  */
 
 export type TseEnvKey = 'oficial' | 'simulado';
@@ -64,14 +72,15 @@ export type TseEnvKey = 'oficial' | 'simulado';
 export type TseFileCode = 'EA10' | 'EA11' | 'EA12' | 'EA14' | 'EA15' | 'EA16' | 'EA18' | 'EA20';
 
 export interface TseHostConfig {
+  /** Prefixo completo de onde saem todos os arquivos deste ambiente — já inclui o "ambiente" e, quando existir, o segmento de ciclo (ex.: "simulado2026"). */
   base: string;
-  /** Segmento de diretório de ambiente usado nas URLs (não o rótulo da UI). */
-  dirSegment: string;
 }
 
 export const TSE_HOSTS: Record<TseEnvKey, TseHostConfig> = {
-  oficial: { base: 'https://resultados.tse.jus.br', dirSegment: 'oficial' },
-  simulado: { base: 'https://resultados-sim.tse.jus.br/simulado', dirSegment: 'simulado' },
+  // [DOC, inferido por simetria — ver nota de fontes acima] não observado ao vivo.
+  oficial: { base: 'https://resultados.tse.jus.br/oficial' },
+  // [OBSERVADO em 28/09/2026] confirmado ao vivo durante a janela de simulado.
+  simulado: { base: 'https://resultados-sim.tse.jus.br/simulado/simulado2026' },
 };
 
 export const TSE_CONFIG = {
@@ -92,62 +101,54 @@ export const TSE_CONFIG = {
 
   specUrl: 'https://www.tse.jus.br/eleicoes/informacoes-tecnicas-sobre-a-divulgacao-de-resultados',
 
-  /**
-   * URL fixa do catálogo de eleições (EA11), confirmada por múltiplas fontes
-   * (ex.: https://resultados.tse.jus.br/oficial/comum/config/ele-c.json).
-   */
+  /** [OBSERVADO] Manual de verificação dos arquivos JWS — ver jws.ts. */
+  jwsManualUrl:
+    'https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados/manual-verificacao-jws',
+
+  /** [OBSERVADO] Catálogo de eleições (EA11), sempre em `.jws`. */
   ea11Url(env: TseEnvKey): string {
-    return `${TSE_HOSTS[env].base}/${TSE_HOSTS[env].dirSegment}/comum/config/ele-c.json`;
+    return `${TSE_HOSTS[env].base}/comum/config/ele-c.jws`;
+  },
+
+  /** [OBSERVADO] `<base>/<cdEleicao>/dados/<abrangencia>` — sem segmento de ciclo. */
+  electionDir(env: TseEnvKey, cdEleicao: number, uf: string | null): string {
+    const abr = uf ? uf.toLowerCase() : 'br';
+    return `${TSE_HOSTS[env].base}/${cdEleicao}/dados/${abr}`;
   },
 
   /**
-   * Diretório-base por eleição, confirmado no padrão geral descrito pelo EA11:
-   * `<base>/<ambiente>/<ciclo>/<cdEleicao>/dados/<uf>`.
+   * [DOC — PDF "Instruções para download", seção 5] Códigos de cargo do TSE.
+   * Usados no nome do arquivo (`-c<CCCC>-`), zero-preenchidos a 4 dígitos.
    */
-  electionDir(env: TseEnvKey, ciclo: string, cdEleicaoPadded: string, uf: string): string {
-    return `${TSE_HOSTS[env].base}/${TSE_HOSTS[env].dirSegment}/${ciclo}/${cdEleicaoPadded}/dados/${uf.toLowerCase()}`;
-  },
+  officeCargoCode: {
+    presidente: 1,
+    governador: 3,
+    senador: 5,
+    deputadoFederal: 6,
+    deputadoEstadual: 7,
+  } satisfies Record<OfficeKey, number>,
 
-  /**
-   * Códigos de cargo do TSE por OfficeKey. NÃO CONFIRMADO — ver nota no topo
-   * deste arquivo. Deixar vazio até confirmar na especificação oficial do EA20
-   * (não localizada nesta sessão) ou extrair dinamicamente de `carg[]` de um
-   * EA20 já obtido para a mesma eleição.
-   */
-  officeCargoCode: {} as Partial<Record<OfficeKey, string>>,
-
-  /**
-   * TODO(tse-integracao): construir a URL de EA10/EA20 exige o código de cargo
-   * (ver `officeCargoCode`, ainda não confirmado) além do código de eleição
-   * (resolvido dinamicamente via `ea11.ts`, nunca fixo). Enquanto
-   * `officeCargoCode[office]` estiver ausente, devolve `null` — o app trata
-   * isso como "unconfigured" e nunca inventa o restante da URL.
-   */
+  /** [OBSERVADO] `<abrangencia>-c<cargo 4 díg>-e<eleição 6 díg>-<u|e>.jws`. */
   buildResultPath(
     fileCode: 'EA10' | 'EA20',
     env: TseEnvKey,
-    params: { office: OfficeKey; uf: string | null; ciclo: string; cdEleicaoPadded: string },
-  ): string | null {
-    const cargo = TSE_CONFIG.officeCargoCode[params.office];
-    if (!cargo) return null;
+    params: { office: OfficeKey; uf: string | null; cdEleicao: number },
+  ): string {
+    const cargo = padCode(TSE_CONFIG.officeCargoCode[params.office], 4);
     const abr = params.uf ? params.uf.toLowerCase() : 'br';
-    const dir = TSE_CONFIG.electionDir(env, params.ciclo, params.cdEleicaoPadded, params.uf ?? 'br');
+    const dir = TSE_CONFIG.electionDir(env, params.cdEleicao, params.uf);
     const suffix = fileCode === 'EA10' ? 'e' : 'u';
-    return `${dir}/${abr}-c${cargo}-e${params.cdEleicaoPadded}-${suffix}.json`;
+    return `${dir}/${abr}-c${cargo}-e${padCode(params.cdEleicao, 6)}-${suffix}.jws`;
   },
 
   /**
    * EA14 (Brasil) / EA15 (UF) — "acompanhamento" — não dependem do código de
-   * cargo, apenas do código de eleição já resolvido. Diferente de EA10/EA20,
-   * este path é construível de ponta a ponta com o que já confirmamos.
+   * cargo, apenas do código de eleição já resolvido.
    */
-  buildAccompanimentPath(
-    env: TseEnvKey,
-    params: { uf: string | null; ciclo: string; cdEleicaoPadded: string },
-  ): string {
+  buildAccompanimentPath(env: TseEnvKey, params: { uf: string | null; cdEleicao: number }): string {
     const abr = params.uf ? params.uf.toLowerCase() : 'br';
-    const dir = TSE_CONFIG.electionDir(env, params.ciclo, params.cdEleicaoPadded, params.uf ?? 'br');
-    return `${dir}/${abr}-e${params.cdEleicaoPadded}-ab.json`;
+    const dir = TSE_CONFIG.electionDir(env, params.cdEleicao, params.uf);
+    return `${dir}/${abr}-e${padCode(params.cdEleicao, 6)}-ab.jws`;
   },
 };
 

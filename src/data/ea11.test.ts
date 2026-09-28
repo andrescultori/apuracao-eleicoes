@@ -35,14 +35,19 @@ describe('resolveElection', () => {
     expect(resolved?.abrangencia?.cd).toBe('BR');
   });
 
-  it('resolve a eleição federal (senador) restrita a uma UF', () => {
+  it('resolve a eleição estadual (senador) restrita a uma UF — Senador vai junto com a estadual, não com Presidente', () => {
     const resolved = resolveElection(catalog, 'senador', 1, 'PR');
-    expect(resolved?.cdEleicao).toBe(6257);
+    expect(resolved?.cdEleicao).toBe(6259);
     expect(resolved?.abrangencia?.cd).toBe('PR');
   });
 
   it('resolve a eleição estadual (governador) por UF', () => {
     const resolved = resolveElection(catalog, 'governador', 1, 'SP');
+    expect(resolved?.cdEleicao).toBe(6259);
+  });
+
+  it('resolve a eleição estadual (deputado federal) por UF — mesma eleição do governador', () => {
+    const resolved = resolveElection(catalog, 'deputadoFederal', 1, 'SP');
     expect(resolved?.cdEleicao).toBe(6259);
   });
 

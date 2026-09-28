@@ -2,26 +2,37 @@
  * Verificação de assinatura JWS (JSON Web Signature) para os arquivos de
  * divulgação de resultados do TSE.
  *
- * NÃO CONFIRMADO — atualização após pesquisa: não localizamos, em nenhuma
- * fonte consultada (ver nota de fontes em tseConfig.ts), um "Manual de
- * verificação dos arquivos JWS" nem qualquer menção a JWS, RS256/ES256 ou
- * serialização compact para os arquivos EA10–EA20. O que encontramos foi um
- * arquivo tipo "a" no catálogo EA11 — `cert-e<ELEICAO>-a.cer` — descrito como
- * "certificado digital utilizado para validação da assinatura dos arquivos
- * gerados para uma eleição", o que sugere um mecanismo baseado em certificado
- * X.509 (possivelmente PKCS#7/CMS destacado) em vez de JWS — mas isso é
- * inferência nossa, não um fato confirmado. Também é possível que o manual
- * exista e não tenha sido encontrado por causa do bloqueio de rede ao domínio
- * tse.jus.br neste ambiente.
+ * CONFIRMADO ao vivo em 28/09/2026 (navegação manual pelo app oficial do
+ * simulado, durante a janela de simulado de 28–29/set, com leitura do
+ * `performance.getEntriesByType('resource')` do navegador e fetch pontual dos
+ * arquivos já carregados pelo app — ver PR que introduziu esta nota):
+ *   - Os arquivos de resultado (`-u.jws`, `-e.jws`, etc.) são de fato um JWS em
+ *     compact serialization (3 blocos separados por ponto).
+ *   - Algoritmo: **EdDSA (Ed25519)** — não RS256/ES256 como se cogitava antes.
+ *     Header observado: `{"alg":"EdDSA","kid":"pEGrlis0i8vO2Bz7Ergwr0MnKfg","typ":"JOSE"}`.
+ *   - Assinatura de 64 bytes, consistente com Ed25519.
+ *   - Manual oficial: "Manual de verificação dos arquivos JWS" —
+ *     https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados/manual-verificacao-jws
+ *     (PDF de 11 páginas; só as páginas 1–4 foram lidas até agora). Publica a
+ *     chave pública em dois formatos (mesma chave Ed25519): JWK (indicado para
+ *     JS/Python) e X.509 (cadeia AC TOTALIZACAO → AC DIVULGACAO → ELEICOES 2026,
+ *     com LCR). Bibliotecas citadas: `jose` (Node), `python-jose`/`cryptography`
+ *     (Python), `nimbus-jose-jwt` (Java), `firebase/php-jwt` (PHP),
+ *     `Microsoft.IdentityModel.Tokens` (.NET).
  *
- * Por isso este módulo continua disponível e testado (para o caso de a
- * integração real usar JWS em algum arquivo), mas `tseDataProvider.ts`
- * atualmente NÃO o usa como gate de confiança — ele documenta esse ponto em
- * aberto e nunca promove um resultado a "ready" sem essa confirmação. Não
- * decidir sozinho qual mecanismo usar em produção sem antes confirmar na
- * documentação oficial (a partir de um ambiente sem esse bloqueio de rede).
+ * NÃO CONFIRMADO — ainda falta a chave pública real para verificar de fato:
+ *   - O Apêndice A do manual (lido) traz chaves de **DESENVOLVIMENTO**,
+ *     explicitamente marcadas "não válidas para resultados oficiais". Deve
+ *     haver um apêndice equivalente para produção nas páginas 5–11, ainda não
+ *     lidas.
+ *   - Por isso `tseDataProvider.ts` continua sem chamar `verifyJws` de verdade
+ *     — sem a chave real (JWK do TSE, importada via
+ *     `crypto.subtle.importKey('jwk', jwk, {name:'Ed25519'}, false, ['verify'])`),
+ *     não há nada a verificar contra, e nenhum dado deve ser promovido a
+ *     "ready" nessa condição. Ver TODO em tseDataProvider.ts.
  *
- * O que ESTE módulo faz, de forma genérica e sem depender desses detalhes:
+ * O que ESTE módulo faz, de forma genérica e sem depender de qual chave será
+ * usada:
  *  - decodifica um JWS em "compact serialization" (header.payload.signature);
  *  - localiza o algoritmo declarado no header (`alg`);
  *  - verifica a assinatura via Web Crypto (SubtleCrypto), a partir de uma
@@ -54,6 +65,7 @@ function base64UrlDecodeToString(b64url: string): string {
 }
 
 const ALG_TO_SUBTLE: Record<string, { name: string; hash?: string }> = {
+  EdDSA: { name: 'Ed25519' },
   RS256: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
   RS384: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-384' },
   RS512: { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-512' },
@@ -96,7 +108,7 @@ export async function verifyJws(compact: string, publicKey: CryptoKey): Promise<
       ? { name: 'RSA-PSS', saltLength: 32 }
       : algSpec.name === 'ECDSA'
         ? { name: 'ECDSA', hash: algSpec.hash! }
-        : { name: algSpec.name };
+        : { name: algSpec.name }; // Ed25519 (EdDSA) e RSASSA-PKCS1-v1_5 não levam parâmetro de hash aqui
 
   const valid = await crypto.subtle.verify(
     verifyAlgorithm,
