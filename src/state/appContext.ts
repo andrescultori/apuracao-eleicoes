@@ -52,6 +52,12 @@ export class AppContext {
     return officeUfForCurrent(this.state, office);
   }
 
+  /** Status real do provedor ativo (mock sempre 'ready'; TSE reflete o catálogo EA11). */
+  electionDataStatus(): ProviderStatus {
+    const provider = this.state.dataMode === 'tse' ? this.tseProvider : this.mockProvider;
+    return provider.getElectionData().status;
+  }
+
   isFav(turn: Turn, office: OfficeKey, uf: string | null, id: string): boolean {
     return storeIsFav(this.state, turn, office, uf, id);
   }

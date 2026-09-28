@@ -1,12 +1,19 @@
 import { OFFICES } from '../data/domain';
 import { computeResults, getScopeSections } from '../data/mockDataProvider';
-import type { CandidateResult, OfficeKey } from '../data/types';
+import type { CandidateResult, OfficeKey, ProviderStatus } from '../data/types';
 import type { AppContext } from '../state/appContext';
 import { CandidateTable } from './candidateTable';
 import { EvolutionChart, VoteChart } from './charts';
 import { FavoritesSection } from './favorites';
 import { FilterBar } from './filterBar';
 import { SummaryCards, UpdateRow } from './summaryCards';
+
+const TSE_STATUS_EMPTY_STATE_MESSAGE: Record<Exclude<ProviderStatus, 'ready'>, string> = {
+  loading: 'Buscando e verificando os dados desta eleição no TSE — isso pode levar alguns segundos.',
+  error:
+    'Não foi possível obter ou verificar os dados desta eleição no TSE agora. Os dados só são exibidos depois que a assinatura do arquivo é confirmada — nunca um resultado não verificado.',
+  unconfigured: 'Esta eleição ainda não está disponível no catálogo publicado pelo TSE.',
+};
 
 export function OfficePage(app: AppContext, office: OfficeKey): string {
   const cfg = OFFICES[office];
@@ -38,12 +45,12 @@ export function OfficePage(app: AppContext, office: OfficeKey): string {
   const countedSections = app.state.dataMode === 'tse' ? 0 : Math.round(totalSections * app.sim.t);
 
   if (app.state.dataMode === 'tse' && results.providerStatus && results.providerStatus !== 'ready') {
+    const message = TSE_STATUS_EMPTY_STATE_MESSAGE[results.providerStatus];
     return (
       '<div class="stack">' +
       FilterBar(app, office) +
       '<div class="empty-state"><h3>Dados indisponíveis</h3>' +
-      '<p>O modo de dados oficiais (TSE) está ativo, mas o endpoint exato ainda não foi configurado nesta implementação — ' +
-      'ver "Sobre os dados" para detalhes e os links da documentação técnica oficial.</p>' +
+      `<p>${message} Ver "Sobre os dados" para detalhes técnicos.</p>` +
       '<button class="btn primary" data-action="set-datamode" data-value="mock">Voltar ao modo demonstração</button></div>' +
       '</div>'
     );

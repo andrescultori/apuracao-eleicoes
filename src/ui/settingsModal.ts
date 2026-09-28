@@ -1,8 +1,15 @@
-import type { ThemeMode } from '../data/types';
+import type { ProviderStatus, ThemeMode } from '../data/types';
 import type { AppContext } from '../state/appContext';
 import { ICONS } from './icons';
 
 const THEME_LABELS: Record<ThemeMode, string> = { light: 'Claro', dark: 'Escuro', system: 'Sistema' };
+
+const TSE_STATUS_SETTINGS_LABEL: Record<ProviderStatus, string> = {
+  ready: 'Conectado ao catálogo do TSE; a assinatura de cada arquivo é verificada antes de exibir dados.',
+  loading: 'Buscando o catálogo de eleições do TSE...',
+  error: 'Não foi possível obter ou verificar o catálogo do TSE agora.',
+  unconfigured: 'Catálogo do TSE ainda não disponível.',
+};
 
 export function SettingsModal(app: AppContext): string {
   if (!app.state.settingsOpen) return '';
@@ -17,7 +24,7 @@ export function SettingsModal(app: AppContext): string {
     `<button aria-pressed="${app.state.dataMode === 'tse'}" data-action="set-datamode" data-value="tse">Dados oficiais (TSE)</button>` +
     '</div>' +
     (app.state.dataMode === 'tse'
-      ? '<div class="row-desc" style="margin-top:7px;">Endpoint oficial ainda não configurado nesta versão — ver "Sobre os dados".</div>'
+      ? `<div class="row-desc" style="margin-top:7px;">${TSE_STATUS_SETTINGS_LABEL[app.electionDataStatus()]} Ver "Sobre os dados".</div>`
       : '') +
     '</div>' +
     '<div class="modal-section">' +
