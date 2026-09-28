@@ -1,6 +1,8 @@
 import { parseEa11Catalog, resolveElection, type Ea11Catalog } from './ea11';
+import { verifyJws } from './jws';
 import { RequestQueue } from './requestQueue';
 import { TSE_CONFIG, type TseEnvKey } from './tseConfig';
+import { getTseVerificationKey } from './tseKeys';
 import type {
   CandidateResult,
   DataProvider,
@@ -15,18 +17,16 @@ import type {
 /**
  * Provedor real de dados do TSE.
  *
- * O que já funciona de ponta a ponta: busca e faz o parsing do catálogo de
- * eleições (EA11), resolve dinamicamente o código de eleição de cada cargo/UF
- * a partir dele (nunca por um código fixo — ver ea11.ts), e monta a URL real
- * do arquivo de resultado (EA20) com o código de cargo confirmado (ver
- * `TSE_CONFIG.officeCargoCode`).
+ * Funciona de ponta a ponta desde 29/09/2026: busca o catálogo de eleições
+ * (EA11), verifica a assinatura EdDSA do envelope `.jws` (ver jws.ts e
+ * tseKeys.ts), resolve dinamicamente o código de eleição de cada cargo (nunca
+ * por um código fixo — ver ea11.ts), monta a URL do arquivo de resultado a
+ * partir do template publicado pelo próprio catálogo (ver tseConfig.ts) e
+ * verifica a assinatura desse arquivo também antes de aceitar os dados.
  *
- * O que ainda NÃO é possível concluir, e por isso `getResults`/`getCandidates`
- * continuam devolvendo honestamente "unconfigured" mesmo depois de um fetch
- * bem-sucedido: falta a chave pública real do TSE para verificar a assinatura
- * EdDSA do arquivo `.jws` (ver a nota completa em jws.ts — o Apêndice A lido
- * do manual é só de desenvolvimento, "não válido para resultados oficiais").
- * Sem essa verificação, os dados nunca são promovidos a "ready".
+ * Falha de assinatura (arquivo adulterado, chave/ambiente errado, algoritmo
+ * inesperado) em qualquer etapa ⇒ os dados nunca são aceitos; o último
+ * resultado válido em cache é preservado, e o status vira 'error'.
  */
 
 /**
@@ -180,6 +180,19 @@ export function createTseDataProvider(getEnv: () => TseEnvKey, queue: RequestQue
     return fresh;
   }
 
+  /** Busca o texto de uma URL e devolve o payload já verificado (JWS válido, alg EdDSA, kid do ambiente). */
+  async function fetchVerified(
+    env: TseEnvKey,
+    url: string,
+  ): Promise<{ notFound: true } | { notFound: false; payload: unknown }> {
+    const res = await queue.fetchText(url);
+    if (res.notFound || res.body === null) return { notFound: true };
+    const { kid, keyPromise } = getTseVerificationKey(env);
+    const key = await keyPromise;
+    const decoded = await verifyJws(res.body, key, { allowedAlgs: ['EdDSA'], expectedKid: kid });
+    return { notFound: false, payload: decoded.payload };
+  }
+
   /**
    * Busca e faz o parsing do catálogo EA11, em segundo plano, com cache.
    * `status` só muda quando uma requisição efetivamente termina (sucesso ou
@@ -206,20 +219,15 @@ export function createTseDataProvider(getEnv: () => TseEnvKey, queue: RequestQue
     catalogState.fetching = true;
     catalogState.lastAttemptAt = Date.now();
     const url = TSE_CONFIG.ea11Url(env);
-    queue
-      .fetchJson(url)
+    fetchVerified(env, url)
       .then((res) => {
         catalogState.fetching = false;
-        if (res.notFound || res.body === null) {
+        if (res.notFound) {
           catalogState.status = 'error';
           return;
         }
-        // TODO(tse-integracao): res.body aqui é o JWS compacto do ele-c (string),
-        // não JSON já decodificado — falta decodificar e verificar a assinatura
-        // (ver jws.ts) antes de confiar no catálogo. Sem a chave pública real do
-        // TSE, isso ainda não está ligado; ver nota de fontes em jws.ts.
         try {
-          catalogState.catalog = parseEa11Catalog(res.body);
+          catalogState.catalog = parseEa11Catalog(res.payload);
           catalogState.status = 'ready';
         } catch {
           catalogState.status = 'error';
@@ -227,6 +235,9 @@ export function createTseDataProvider(getEnv: () => TseEnvKey, queue: RequestQue
       })
       .catch(() => {
         catalogState.fetching = false;
+        // Assinatura inválida (JwsVerificationError) ou erro de rede: nunca
+        // promover um catálogo não verificado — mesmo que já tenhamos um
+        // catálogo válido em cache, este mantém-se (não apagamos catalog aqui).
         catalogState.status = 'error';
       });
     return catalogState;
@@ -238,6 +249,7 @@ export function createTseDataProvider(getEnv: () => TseEnvKey, queue: RequestQue
    * mais nova falhou.
    */
   function refreshInBackground(office: OfficeKey, uf: string | null, turn: Turn): void {
+    const env = getEnv();
     const key = keyFor(office, uf, turn);
     const entry = currentEntry(key);
     const catalog = ensureCatalog();
@@ -249,14 +261,25 @@ export function createTseDataProvider(getEnv: () => TseEnvKey, queue: RequestQue
       return;
     }
 
-    const resolved = resolveElection(catalog.catalog, office, turn, uf);
+    const resolved = resolveElection(catalog.catalog, office, turn);
     if (!resolved) {
       if (!entry.data) entry.status = 'unconfigured';
       return;
     }
 
     const cdEleicao = turn === 2 && resolved.cdEleicaoTurno2 ? resolved.cdEleicaoTurno2 : resolved.cdEleicao;
-    const url = TSE_CONFIG.buildResultPath('EA20', getEnv(), { office, uf, cdEleicao });
+    const url = TSE_CONFIG.buildResultPath('EA20', env, catalog.catalog, {
+      office,
+      uf,
+      ciclo: resolved.ciclo,
+      cdEleicao,
+    });
+    if (!url) {
+      // O catálogo não lista um template de diretório para o tipo "u" — nunca
+      // inventar o restante do caminho.
+      if (!entry.data) entry.status = 'unconfigured';
+      return;
+    }
 
     if (entry.fetching) return;
     if (entry.lastAttemptAt !== null && Date.now() - entry.lastAttemptAt < RETRY_COOLDOWN_MS) return;
@@ -264,25 +287,25 @@ export function createTseDataProvider(getEnv: () => TseEnvKey, queue: RequestQue
     entry.fetching = true;
     entry.lastAttemptAt = Date.now();
     if (!entry.data) entry.status = 'loading';
-    queue
-      .fetchJson(url)
+    fetchVerified(env, url)
       .then((res) => {
         entry.fetching = false;
         if (res.notFound) {
           if (!entry.data) entry.status = 'error';
           return;
         }
-        // res.body é o JWS compacto (string) do EA20 — confirmado ao vivo como
-        // EdDSA (Ed25519), ver jws.ts. TODO(tse-integracao): falta a chave
-        // pública real do TSE para chamar verifyJws() aqui; o Apêndice A lido
-        // do manual é só de desenvolvimento ("não válido para resultados
-        // oficiais"), e o apêndice de produção ainda não foi lido. Sem essa
-        // verificação, o arquivo já obtido NUNCA deve ser promovido a "ready"
-        // — fica "unconfigured" mesmo tendo sido buscado com sucesso.
-        if (!entry.data) entry.status = 'unconfigured';
+        try {
+          entry.data = parseEa20Payload(res.payload as Ea20Payload, office, uf ?? 'BR');
+          entry.status = 'ready';
+          entry.fetchedAt = Date.now();
+        } catch {
+          if (!entry.data) entry.status = 'error';
+        }
       })
       .catch(() => {
         entry.fetching = false;
+        // Assinatura inválida ou erro de rede: preserva o último dado válido
+        // (se houver) e nunca promove o novo corpo a "ready".
         if (!entry.data) entry.status = 'error';
       });
   }

@@ -1,9 +1,56 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import ea11Sample from './__fixtures__/ea11.sample.json';
 import ea20Sample from './__fixtures__/ea20.sample.json';
+import { parseEa11Catalog, resolveElection } from './ea11';
 import type { FetchLike } from './requestQueue';
 import { RequestQueue } from './requestQueue';
+import { TSE_CONFIG } from './tseConfig';
 import { createTseDataProvider, parseEa20Payload, type Ea20Payload } from './tseDataProvider';
+
+function base64UrlEncode(bytes: Uint8Array): string {
+  let binary = '';
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function base64UrlEncodeString(s: string): string {
+  return base64UrlEncode(new TextEncoder().encode(s));
+}
+
+/**
+ * `tseDataProvider.ts` verifica a assinatura contra as chaves REAIS do TSE
+ * (ver tseKeys.ts) — não temos a chave privada do TSE para assinar fixtures
+ * de teste. Por isso `./tseKeys` é substituído por um par Ed25519 gerado só
+ * para este arquivo, mantendo o resto do pipeline real (fetch → verifyJws →
+ * parseEa11Catalog/parseEa20Payload → status) — nada aqui simula o resultado
+ * da verificação, só a chave usada para verificar.
+ */
+const TEST_KID = 'test-kid';
+let testPublicKey: CryptoKey;
+let testPrivateKey: CryptoKey;
+
+vi.mock('./tseKeys', () => ({
+  getTseVerificationKey: () => ({
+    kid: TEST_KID,
+    keyPromise: Promise.resolve().then(() => testPublicKey),
+  }),
+}));
+
+beforeAll(async () => {
+  const pair = await crypto.subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify']);
+  testPublicKey = pair.publicKey;
+  testPrivateKey = pair.privateKey;
+});
+
+async function signEdDSA(payload: unknown, kid: string = TEST_KID): Promise<string> {
+  const header = { alg: 'EdDSA', kid, typ: 'JOSE' };
+  const headerB64 = base64UrlEncodeString(JSON.stringify(header));
+  const payloadB64 = base64UrlEncodeString(JSON.stringify(payload));
+  const signingInput = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
+  const signature = await crypto.subtle.sign({ name: 'Ed25519' }, testPrivateKey, signingInput);
+  const signatureB64 = base64UrlEncode(new Uint8Array(signature));
+  return `${headerB64}.${payloadB64}.${signatureB64}`;
+}
 
 describe('parseEa20Payload', () => {
   it('converte o payload em ElectionResults ordenado por votos (schema real, valores em string)', () => {
@@ -29,18 +76,33 @@ describe('parseEa20Payload', () => {
   });
 });
 
-function fakeFetch(responses: Record<string, unknown>): FetchLike {
+function fakeFetch(responses: Record<string, string>): FetchLike {
   return async (url: string) => {
     if (!(url in responses)) {
-      return { ok: false, status: 404, headers: { get: () => null }, json: async () => null };
+      return { ok: false, status: 404, headers: { get: () => null }, text: async () => '' };
     }
-    return { ok: true, status: 200, headers: { get: () => null }, json: async () => responses[url] };
+    return { ok: true, status: 200, headers: { get: () => null }, text: async () => responses[url]! };
   };
 }
 
-const OFICIAL_EA11_URL = 'https://resultados.tse.jus.br/oficial/comum/config/ele-c.jws';
+const OFICIAL_EA11_URL = TSE_CONFIG.ea11Url('oficial');
 
-describe('createTseDataProvider — fallback "dados indisponíveis"', () => {
+/** URL do EA20 (Presidente/Brasil), derivada do próprio catálogo — nunca hardcoded. */
+function presidenteEa20Url(): string {
+  const catalog = parseEa11Catalog(ea11Sample);
+  const resolved = resolveElection(catalog, 'presidente', 1);
+  if (!resolved) throw new Error('fixture inválida: presidente não resolveu no catálogo de teste');
+  const url = TSE_CONFIG.buildResultPath('EA20', 'oficial', catalog, {
+    office: 'presidente',
+    uf: null,
+    ciclo: resolved.ciclo,
+    cdEleicao: resolved.cdEleicao,
+  });
+  if (!url) throw new Error('fixture inválida: não foi possível montar a URL do EA20 de teste');
+  return url;
+}
+
+describe('createTseDataProvider — verificação de assinatura ligada de ponta a ponta', () => {
   it('devolve status "error" quando o catálogo EA11 não pode ser obtido (404)', async () => {
     const queue = new RequestQueue({ fetchImpl: fakeFetch({}), intervalMs: 0 });
     const provider = createTseDataProvider(() => 'oficial', queue);
@@ -52,13 +114,9 @@ describe('createTseDataProvider — fallback "dados indisponíveis"', () => {
     });
   });
 
-  it('busca o EA20 real mas nunca promove a "ready" sem verificar a assinatura', async () => {
-    // Presidente resolve para a eleição 6257 (tp federal) no fixture do EA11 —
-    // ver ea11.sample.json. A URL do EA20 já é construível de ponta a ponta
-    // agora que o código de cargo está confirmado (TSE_CONFIG.officeCargoCode).
-    const ea20Url = 'https://resultados.tse.jus.br/oficial/6257/dados/br/br-c0001-e006257-u.jws';
+  it('nunca promove um resultado a "ready" quando o catálogo não está assinado (JSON puro, sem JWS)', async () => {
     const queue = new RequestQueue({
-      fetchImpl: fakeFetch({ [OFICIAL_EA11_URL]: ea11Sample, [ea20Url]: ea20Sample }),
+      fetchImpl: fakeFetch({ [OFICIAL_EA11_URL]: JSON.stringify(ea11Sample) }),
       intervalMs: 0,
     });
     const provider = createTseDataProvider(() => 'oficial', queue);
@@ -66,9 +124,67 @@ describe('createTseDataProvider — fallback "dados indisponíveis"', () => {
     provider.getResults('presidente', null, 1);
     await vi.waitFor(() => {
       const r = provider.getResults('presidente', null, 1);
-      // O arquivo foi obtido com sucesso, mas sem a chave pública real do TSE
-      // para verificar a assinatura EdDSA, os dados nunca viram "ready".
-      expect(r.status).toBe('unconfigured');
+      expect(r.status).toBe('error');
+      expect(r.data).toBeNull();
+    });
+  });
+
+  it('chega a "ready" com os dados corretos quando catálogo e resultado têm assinatura EdDSA válida', async () => {
+    const ea20Url = presidenteEa20Url();
+    const queue = new RequestQueue({
+      fetchImpl: fakeFetch({
+        [OFICIAL_EA11_URL]: await signEdDSA(ea11Sample),
+        [ea20Url]: await signEdDSA(ea20Sample),
+      }),
+      intervalMs: 0,
+    });
+    const provider = createTseDataProvider(() => 'oficial', queue);
+
+    provider.getResults('presidente', null, 1);
+    await vi.waitFor(() => {
+      const r = provider.getResults('presidente', null, 1);
+      expect(r.status).toBe('ready');
+      expect(r.data?.candidates).toHaveLength(2);
+      expect(r.data?.candidates[0]?.name).toBe('CANDIDATO 9987');
+    });
+  });
+
+  it('nunca promove a "ready" quando o arquivo de resultado foi adulterado depois de assinado', async () => {
+    const ea20Url = presidenteEa20Url();
+    const validEa20 = await signEdDSA(ea20Sample);
+    const [headerB64, , signatureB64] = validEa20.split('.');
+    const tamperedPayloadB64 = base64UrlEncodeString(JSON.stringify({ ...ea20Sample, carg: [] }));
+    const tamperedEa20 = `${headerB64}.${tamperedPayloadB64}.${signatureB64}`;
+
+    const queue = new RequestQueue({
+      fetchImpl: fakeFetch({ [OFICIAL_EA11_URL]: await signEdDSA(ea11Sample), [ea20Url]: tamperedEa20 }),
+      intervalMs: 0,
+    });
+    const provider = createTseDataProvider(() => 'oficial', queue);
+
+    provider.getResults('presidente', null, 1);
+    await vi.waitFor(() => {
+      const r = provider.getResults('presidente', null, 1);
+      expect(r.status).toBe('error');
+      expect(r.data).toBeNull();
+    });
+  });
+
+  it('nunca promove a "ready" quando o kid do arquivo de resultado é de outro ambiente/eleição', async () => {
+    const ea20Url = presidenteEa20Url();
+    const queue = new RequestQueue({
+      fetchImpl: fakeFetch({
+        [OFICIAL_EA11_URL]: await signEdDSA(ea11Sample),
+        [ea20Url]: await signEdDSA(ea20Sample, 'kid-de-outro-ambiente'),
+      }),
+      intervalMs: 0,
+    });
+    const provider = createTseDataProvider(() => 'oficial', queue);
+
+    provider.getResults('presidente', null, 1);
+    await vi.waitFor(() => {
+      const r = provider.getResults('presidente', null, 1);
+      expect(r.status).toBe('error');
       expect(r.data).toBeNull();
     });
   });

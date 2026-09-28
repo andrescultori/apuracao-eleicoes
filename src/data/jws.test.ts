@@ -127,4 +127,26 @@ describe('verifyJws — EdDSA (Ed25519), algoritmo real do TSE', () => {
     const compact = await signCompactJwsEdDSA({ vap: '1' }, privateKey);
     await expect(verifyJws(compact, otherPublicKey)).rejects.toThrow(JwsVerificationError);
   });
+
+  it('rejeita quando o alg não está em allowedAlgs, mesmo sendo suportado e válido', async () => {
+    const compact = await signCompactJwsEdDSA({ vap: '1' }, privateKey);
+    await expect(verifyJws(compact, publicKey, { allowedAlgs: ['RS256'] })).rejects.toThrow(JwsVerificationError);
+  });
+
+  it('aceita quando o alg está em allowedAlgs', async () => {
+    const compact = await signCompactJwsEdDSA({ vap: '1' }, privateKey);
+    await expect(verifyJws(compact, publicKey, { allowedAlgs: ['EdDSA'] })).resolves.toBeDefined();
+  });
+
+  it('rejeita quando o kid não confere com expectedKid — chave de outro ambiente', async () => {
+    const compact = await signCompactJwsEdDSA({ vap: '1' }, privateKey, 'kid-do-simulado');
+    await expect(verifyJws(compact, publicKey, { expectedKid: 'kid-do-oficial' })).rejects.toThrow(
+      JwsVerificationError,
+    );
+  });
+
+  it('aceita quando o kid confere com expectedKid', async () => {
+    const compact = await signCompactJwsEdDSA({ vap: '1' }, privateKey, 'kid-certo');
+    await expect(verifyJws(compact, publicKey, { expectedKid: 'kid-certo' })).resolves.toBeDefined();
+  });
 });

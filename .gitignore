@@ -13,6 +13,10 @@ dist-ssr
 coverage
 *.local
 
+# Fixtures reais de .jws baixadas manualmente do TSE (não versionadas — ver
+# src/data/__fixtures__/README.md)
+src/data/__fixtures__/real/*.jws
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

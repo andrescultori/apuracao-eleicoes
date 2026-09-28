@@ -4,12 +4,18 @@
  * com suporte a ETag/Last-Modified, backoff exponencial em erro de rede, e a
  * regra de nunca repetir uma URL que respondeu 404 (respostas 404 repetidas
  * podem causar bloqueio temporário de IP, segundo a documentação oficial).
+ *
+ * Lê o corpo como TEXTO, não como JSON: os arquivos reais do TSE (`.jws`) são
+ * um envelope JWS em compact serialization (`header.payload.assinatura`), não
+ * JSON — mesmo vindo com `Content-Type: application/json`. `res.json()`
+ * lançaria em cima desse corpo. Quem decodifica e verifica a assinatura é o
+ * chamador (ver `verifyJws` em jws.ts); esta fila só transporta bytes.
  */
 
 export interface CacheEntry {
   etag: string | null;
   lastModified: string | null;
-  body: unknown;
+  body: string | null;
   notFound: boolean;
 }
 
@@ -21,7 +27,7 @@ export interface FetchLike {
     ok: boolean;
     status: number;
     headers: { get(name: string): string | null };
-    json(): Promise<unknown>;
+    text(): Promise<string>;
   }>;
 }
 
@@ -67,7 +73,7 @@ export class RequestQueue {
    * true` em vez de tentar de novo). Em erro de rede, tenta `maxRetries` vezes
    * extras com backoff exponencial antes de rejeitar.
    */
-  fetchJson(url: string): Promise<CacheEntry> {
+  fetchText(url: string): Promise<CacheEntry> {
     const cached = this.cache.get(url);
     if (cached?.notFound) return Promise.resolve(cached);
 
@@ -114,7 +120,7 @@ export class RequestQueue {
         throw new Error(`HTTP ${res.status}`);
       }
 
-      const body = await res.json();
+      const body = await res.text();
       const entry: CacheEntry = {
         etag: res.headers.get('ETag'),
         lastModified: res.headers.get('Last-Modified'),
