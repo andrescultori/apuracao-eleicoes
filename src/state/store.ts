@@ -1,5 +1,5 @@
 import { OFFICES } from '../data/domain';
-import type { DataMode, OfficeKey, PageKey, ThemeMode, Turn, TseEnv } from '../data/types';
+import type { DataMode, OfficeKey, PageKey, ThemeMode, Turn, TseEnv, VoteBasis } from '../data/types';
 
 export interface AppState {
   page: PageKey;
@@ -15,6 +15,8 @@ export interface AppState {
   /** 'mock' (demonstração) | 'tse' (dados oficiais — ver TSE_CONFIG) */
   dataMode: DataMode;
   tseEnv: TseEnv;
+  /** Base do percentual de cada candidato no modo TSE — ver VoteBasis. */
+  voteBasis: VoteBasis;
   /** Uso interno de render: focar o campo de busca após um input, sem perder o caret. */
   _focusSearch: boolean;
 }
@@ -31,6 +33,7 @@ const PERSISTED_KEYS = [
   'page',
   'dataMode',
   'tseEnv',
+  'voteBasis',
 ] as const satisfies readonly (keyof AppState)[];
 
 export function createInitialState(): AppState {
@@ -47,6 +50,7 @@ export function createInitialState(): AppState {
     lastUpdate: Date.now(),
     dataMode: 'mock',
     tseEnv: 'oficial',
+    voteBasis: 'valid',
     _focusSearch: false,
   };
 }

@@ -42,7 +42,11 @@ export function OfficePage(app: AppContext, office: OfficeKey): string {
     });
 
   const totalSections = getScopeSections(office, uf);
-  const countedSections = app.state.dataMode === 'tse' ? 0 : Math.round(totalSections * app.sim.t);
+  // No modo TSE ainda não buscamos o arquivo de acompanhamento (EA14/EA15),
+  // que é quem publica o número real de seções totalizadas — por isso `null`
+  // aqui (exibido como "—"), nunca um 0% enganoso como se a apuração não
+  // tivesse começado.
+  const countedSections = app.state.dataMode === 'tse' ? null : Math.round(totalSections * app.sim.t);
 
   if (app.state.dataMode === 'tse' && results.providerStatus && results.providerStatus !== 'ready') {
     const message = TSE_STATUS_EMPTY_STATE_MESSAGE[results.providerStatus];
