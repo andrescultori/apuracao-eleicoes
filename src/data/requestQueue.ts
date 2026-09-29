@@ -57,7 +57,13 @@ export class RequestQueue {
   private busy = false;
 
   constructor(options: RequestQueueOptions = {}) {
-    this.fetchImpl = options.fetchImpl ?? (fetch as unknown as FetchLike);
+    // `fetch` desanexado de `window` (ex.: guardado como valor solto, como
+    // aqui) é rejeitado pelo navegador com "Illegal invocation" assim que é
+    // chamado — falha síncrona, antes de qualquer tentativa de rede, então
+    // nunca aparece na aba Network nem gera um erro não tratado no console
+    // (cai direto no catch de `runJob`). `.bind(globalThis)` preserva o
+    // `this` que a implementação nativa exige.
+    this.fetchImpl = options.fetchImpl ?? (fetch.bind(globalThis) as unknown as FetchLike);
     this.intervalMs = options.intervalMs ?? 50;
     this.maxRetries = options.maxRetries ?? 1;
     this.backoffBaseMs = options.backoffBaseMs ?? 500;
