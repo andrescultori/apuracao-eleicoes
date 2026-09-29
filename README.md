@@ -59,58 +59,72 @@ O app tem dois modos, alternáveis em **Configurações**:
 
 ## Stack técnica
 
-| Camada                 | Tecnologia                                                 |
-| ---------------------- | ---------------------------------------------------------- |
-| Build / dev server     | [Vite](https://vitejs.dev)                                 |
-| Linguagem              | TypeScript, modo `strict`                                  |
-| UI                     | HTML/CSS/JS puro — sem framework, um módulo por componente |
-| Testes                 | [Vitest](https://vitest.dev) (34 testes)                   |
-| Lint / formatação      | ESLint 9 + typescript-eslint, Prettier                     |
-| CI                     | GitHub Actions                                             |
-| Deploy                 | GitHub Pages (via Actions) + Netlify (configuração pronta) |
-| Fonte de dados oficial | TSE — catálogo EA11 + arquivos de resultado EA10/EA20      |
+| Camada                 | Tecnologia                                                         |
+| ---------------------- | ------------------------------------------------------------------ |
+| Build / dev server     | [Vite](https://vitejs.dev)                                         |
+| Linguagem              | TypeScript, modo `strict`                                          |
+| UI                     | HTML/CSS/JS puro — sem framework, um módulo por componente         |
+| Testes                 | [Vitest](https://vitest.dev) (66 testes)                           |
+| Lint / formatação      | ESLint 9 + typescript-eslint, Prettier                             |
+| CI                     | GitHub Actions                                                     |
+| Deploy                 | GitHub Pages (via Actions) + Netlify (configuração pronta)         |
+| Fonte de dados oficial | TSE — catálogo EA11, resultado EA10/EA20, acompanhamento EA14/EA15 |
 
 ## Decisão técnica: integração real com o TSE
 
 A integração real busca e interpreta o catálogo de eleições do TSE (arquivo
 EA11) para resolver dinamicamente o código de eleição de cada cargo/UF —
-nunca usa um código fixo. Isso já funciona de ponta a ponta (fila de
-requisições com concorrência 1, cache com `ETag`/`If-None-Match`, backoff
-exponencial em falha de rede, nunca repetir uma URL que respondeu 404).
+nunca usa um código fixo — e monta a URL de cada arquivo a partir do
+_template_ de diretório publicado pelo próprio catálogo (`arq[].dir`), nunca
+de um caminho fixado no código. Fila de requisições com concorrência 1,
+cache com `ETag`/`If-None-Match`, backoff exponencial em falha de rede,
+nunca repetir uma URL que respondeu 404.
 
-Em 28/09/2026, dentro da janela oficial de simulado, uma sessão com acesso
-real ao navegador (Claude in Chrome) navegou manualmente pelo app oficial do
-simulado e confirmou ao vivo dois pontos que antes eram só suposição:
+Confirmado ao vivo, com acesso real ao navegador durante as janelas de
+simulado de setembro/2026 e testado nesta própria interface (Presidente,
+Governador, Senador, Deputado Federal e Deputado Estadual, em vários
+estados, com atualização automática e sem intervenção manual):
 
-- **Código de cargo do TSE** — confirmado na documentação oficial
-  ("Instruções para download", seção 5) e já preenchido em
-  `TSE_CONFIG.officeCargoCode`: Presidente `0001`, Governador `0003`, Senador
-  `0005`, Deputado Federal `0006`, Deputado Estadual `0007`. A URL do arquivo
-  de resultado (EA20) já é construída de ponta a ponta.
-- **Mecanismo de assinatura** — os arquivos vêm mesmo como um envelope JWS,
-  mas com algoritmo **EdDSA (Ed25519)**, não RS256/ES256 como se cogitava
-  antes. `src/data/jws.ts` já verifica esse algoritmo (testado com uma chave
-  gerada localmente, assinatura válida e adulterada).
+- **Código de cargo do TSE** — Presidente `0001`, Governador `0003`, Senador
+  `0005`, Deputado Federal `0006`, Deputado Estadual `0007`
+  (`TSE_CONFIG.officeCargoCode`), confirmado também no próprio catálogo
+  (`cp[].cd`).
+- **Verificação de assinatura ligada de ponta a ponta** — os arquivos vêm
+  como um envelope JWS (EdDSA/Ed25519); as duas chaves públicas publicadas
+  pelo TSE (desenvolvimento/simulado e produção/oficial) já estão embutidas
+  em `src/data/tseKeys.ts`. Nenhum dado é aceito sem assinatura válida,
+  algoritmo esperado (`EdDSA`) e `kid` batendo com o ambiente ativo — um
+  arquivo adulterado, de outro ambiente, ou ainda não publicado nunca é
+  promovido a "pronto".
+- **Seções totalizadas** — vem do arquivo de acompanhamento do TSE (tipo de
+  arquivo "ab", EA14/EA15), confirmado ao vivo em 29/09/2026 a partir de um
+  arquivo real do simulado: um único arquivo Brasil-scoped já traz as 27 UFs
+  (mais o exterior), sem precisar buscar um arquivo por UF.
+- **CORS** — acesso direto do navegador ao domínio do TSE, sem bloqueio;
+  não há proxy nem função serverless no meio, e não é preciso ter.
+- **Base de percentual configurável** — em "Configurações" é possível
+  escolher se o percentual de cada candidato é calculado sobre votos válidos
+  (padrão, exclui brancos/nulos) ou sobre votos totais apurados.
 
-O que **ainda falta**, documentado como TODO explícito no código
-(`src/data/tseConfig.ts`, `src/data/tseDataProvider.ts`, `src/data/jws.ts`) e
-nunca contornado com valores inventados:
+O que **ainda não foi confirmado ao vivo**, documentado explicitamente no
+código e nunca contornado com valores inventados:
 
-- **A chave pública real do TSE.** O manual oficial de verificação publica a
-  chave em JWK e X.509, mas o apêndice já lido (Apêndice A) é explicitamente
-  de **desenvolvimento** — "não válido para resultados oficiais". Sem a chave
-  de produção, mesmo um arquivo `.jws` buscado com sucesso nunca é promovido a
-  "pronto": o app continua mostrando honestamente "Dados indisponíveis" em vez
-  de exibir um dado não verificado.
-- **O padrão de URL em produção.** Confirmado ao vivo só para o ambiente de
-  simulado; o ambiente oficial (`resultados.tse.jus.br/oficial`) segue por
-  inferência simétrica, sem observação direta (a produção só abre com o
-  pleito 3220, em 04/10/2026, ainda sem candidatos definidos).
+- **O ambiente oficial** (`resultados.tse.jus.br/oficial`). A chave pública
+  de produção já está embutida e a mecânica de verificação foi testada
+  (rejeita a chave errada), mas o ambiente só abre com o pleito 3220, em
+  04/10/2026 — ainda sem candidatos definidos.
+- **Nível UF isolado** (sem município) para o arquivo de resultado — só o
+  nível município foi observado ao vivo diretamente; o app sempre resolve a
+  partir do _template_ do catálogo, então nunca inventa esse padrão.
+- **2º turno** — usa o mesmo código de eleição de 2º turno (`cdt2`)
+  publicado pelo catálogo, mas ainda não foi testado contra dados reais de
+  2º turno.
+- **Tratamento de voto anulado por candidato** (`dvt`) — hoje todo candidato
+  aparece na lista de resultados independente desse campo; a opção de base
+  de percentual resolve o total agregado, mas não filtra linhas individuais.
 
-Essa pesquisa foi feita por fontes secundárias verificáveis e por navegação
-manual ao vivo, já que o acesso direto a `tse.jus.br` não estava disponível no
-ambiente onde o código roda normalmente. **Antes de usar isto em uma eleição
-real**, confirme os pontos acima diretamente na documentação oficial:
+**Antes de usar isto em uma eleição real**, confirme os pontos acima
+diretamente na documentação oficial:
 
 - [Informações técnicas sobre a divulgação de resultados](https://www.tse.jus.br/eleicoes/informacoes-tecnicas-sobre-a-divulgacao-de-resultados)
 - [Manual de verificação dos arquivos JWS](https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados/manual-verificacao-jws)
@@ -147,8 +161,8 @@ mesmo dispatcher.
 - **Deploy no Netlify** (alternativa, configuração pronta): via `netlify.toml`
   (`npm run build`, publica `dist/`). Não são necessárias variáveis de
   ambiente secretas — os arquivos de divulgação do TSE são públicos e não
-  exigem autenticação (segundo as fontes consultadas; não confirmado de forma
-  explícita e documental — ver seção acima).
+  exigem autenticação nem proxy, confirmado nas buscas reais feitas por esta
+  interface durante os simulados (ver seção acima).
 
 ## Rodando localmente
 

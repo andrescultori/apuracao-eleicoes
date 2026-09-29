@@ -22,7 +22,7 @@ export function AboutPage(app: AppContext): string {
     '<h2>Fonte dos resultados</h2>' +
     '<p>Os resultados oficiais são provenientes dos arquivos de divulgação de resultados do Tribunal Superior Eleitoral (TSE). Em "Configurações" é possível alternar entre o modo demonstração (dados fictícios) e o modo dados oficiais.</p>' +
     '<h2>Sobre este aplicativo</h2>' +
-    '<p>O Apuração 2026 é uma interface independente de visualização de dados eleitorais. Ele não altera os dados recebidos e a frequência de atualização depende da disponibilidade da fonte oficial. O aplicativo não realiza análise política, previsão eleitoral nem recomendação de voto — apenas apresenta dados.</p>' +
+    '<p>O Apuração 2026 é uma interface independente de visualização de dados eleitorais. Ele não altera os dados recebidos e a frequência de atualização depende da disponibilidade da fonte oficial. O aplicativo não realiza análise política, previsão eleitoral nem recomendação de voto — apenas apresenta dados. Em "Configurações" também é possível escolher a base do percentual de cada candidato: sobre votos válidos (excluindo brancos e nulos, convenção usual de apuração no Brasil) ou sobre votos totais apurados.</p>' +
     '<h2>Ficha técnica</h2>' +
     '<dl class="kv">' +
     `<dt>Última atualização dos dados</dt><dd class="num">${
@@ -44,8 +44,9 @@ export function AboutPage(app: AppContext): string {
     '<dt>Simulados agendados</dt><dd>15–17/set, 22–24/set e 28–29/set de 2026</dd>' +
     '<dt>Limite de requisições</dt><dd>100 por IP por segundo (excedentes: bloqueio de 10 min)</dd>' +
     '<dt>Assinatura dos arquivos</dt><dd>JWS (EdDSA/Ed25519), verificada no navegador antes de qualquer dado ser exibido</dd>' +
+    '<dt>Seções totalizadas</dt><dd>Arquivo de acompanhamento do TSE (EA14/EA15), verificado da mesma forma</dd>' +
     '</dl>' +
-    '<p>O aplicativo busca os arquivos de divulgação de resultados diretamente do navegador (sem servidor intermediário) e verifica a assinatura digital de cada arquivo antes de exibir qualquer dado — um arquivo com assinatura inválida, de outro ambiente, ou ainda não publicado nunca é mostrado como resultado oficial. Por depender de acesso direto do navegador ao domínio do TSE, a disponibilidade dos dados também depende da política de CORS do servidor do TSE e da janela de divulgação vigente (simulados agendados, ou o pleito oficial a partir de 04/10/2026). Consulte a ' +
+    '<p>O aplicativo busca os arquivos de divulgação de resultados diretamente do navegador (sem servidor intermediário) e verifica a assinatura digital de cada arquivo antes de exibir qualquer dado — um arquivo com assinatura inválida, de outro ambiente, ou ainda não publicado nunca é mostrado como resultado oficial. O acesso direto do navegador ao domínio do TSE foi confirmado ao vivo, sem bloqueio de CORS. A disponibilidade dos dados depende da janela de divulgação vigente (simulados agendados, ou o pleito oficial a partir de 04/10/2026). Consulte a ' +
     `<a href="${TSE_CONFIG.specUrl}" target="_blank" rel="noopener">página oficial de informações técnicas</a> e o <a href="${TSE_CONFIG.jwsManualUrl}" target="_blank" rel="noopener">manual de verificação de assinatura JWS</a> para mais detalhes.</p>` +
     `<div class="notice">Os resultados apresentados são parciais enquanto a totalização não estiver concluída. ${
       app.state.dataMode === 'mock'
