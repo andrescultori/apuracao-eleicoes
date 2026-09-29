@@ -157,7 +157,19 @@ interface CatalogState {
  */
 const RETRY_COOLDOWN_MS = 5000;
 
-export function createTseDataProvider(getEnv: () => TseEnvKey, queue: RequestQueue = new RequestQueue()): DataProvider {
+export function createTseDataProvider(
+  getEnv: () => TseEnvKey,
+  queue: RequestQueue = new RequestQueue(),
+  /**
+   * Chamado sempre que uma busca em segundo plano termina (catálogo ou
+   * resultado), depois do novo `status`/dado já estar salvo. Sem isso, a UI
+   * só refletiria uma busca concluída na próxima vez que algo mais disparasse
+   * uma nova renderização (ex.: abrir Configurações) — os dados chegariam
+   * "certinho" internamente, mas a tela ficaria parada na última renderização
+   * até uma ação não relacionada acontecer.
+   */
+  onUpdate?: () => void,
+): DataProvider {
   const resultsCache = new Map<string, ResultCacheRecord>();
   const catalogState: CatalogState = { status: 'unconfigured', catalog: null, fetching: false, lastAttemptAt: null };
   let catalogEnv: TseEnvKey | null = null;
@@ -239,7 +251,8 @@ export function createTseDataProvider(getEnv: () => TseEnvKey, queue: RequestQue
         // promover um catálogo não verificado — mesmo que já tenhamos um
         // catálogo válido em cache, este mantém-se (não apagamos catalog aqui).
         catalogState.status = 'error';
-      });
+      })
+      .finally(() => onUpdate?.());
     return catalogState;
   }
 
@@ -307,7 +320,8 @@ export function createTseDataProvider(getEnv: () => TseEnvKey, queue: RequestQue
         // Assinatura inválida ou erro de rede: preserva o último dado válido
         // (se houver) e nunca promove o novo corpo a "ready".
         if (!entry.data) entry.status = 'error';
-      });
+      })
+      .finally(() => onUpdate?.());
   }
 
   return {
