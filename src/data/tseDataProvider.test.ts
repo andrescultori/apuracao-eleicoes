@@ -149,6 +149,41 @@ describe('createTseDataProvider — verificação de assinatura ligada de ponta 
     });
   });
 
+  it('chama onUpdate quando a busca em segundo plano termina, guiando a UI sem polling', async () => {
+    // Reproduz o bug real: a UI só re-renderiza (chamando getResults de novo)
+    // em resposta a uma notificação, nunca sozinha. As outras "chega a
+    // ready" acima chamam getResults repetidamente dentro do próprio
+    // vi.waitFor, o que mascara esse problema (o polling do teste faz o
+    // papel que só onUpdate deveria fazer). Aqui, getResults só é chamado de
+    // novo depois que onUpdate dispara — simulando exatamente o que
+    // AppContext faz (re-renderiza quando avisado, nunca por conta própria).
+    const ea20Url = presidenteEa20Url();
+    const queue = new RequestQueue({
+      fetchImpl: fakeFetch({
+        [OFICIAL_EA11_URL]: await signEdDSA(ea11Sample),
+        [ea20Url]: await signEdDSA(ea20Sample),
+      }),
+      intervalMs: 0,
+    });
+    const onUpdate = vi.fn();
+    const provider = createTseDataProvider(() => 'oficial', queue, onUpdate);
+
+    const afterFirstRender = provider.getResults('presidente', null, 1);
+    expect(afterFirstRender.status).not.toBe('ready');
+
+    // 1ª notificação: catálogo EA11 terminou. Só agora uma "re-renderização"
+    // chama getResults de novo — o que dispara a busca do resultado EA20.
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    const afterSecondRender = provider.getResults('presidente', null, 1);
+    expect(afterSecondRender.status).not.toBe('ready');
+
+    // 2ª notificação: resultado EA20 terminou (assinatura verificada).
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(2));
+    const afterThirdRender = provider.getResults('presidente', null, 1);
+    expect(afterThirdRender.status).toBe('ready');
+    expect(afterThirdRender.data?.candidates).toHaveLength(2);
+  });
+
   it('nunca promove a "ready" quando o arquivo de resultado foi adulterado depois de assinado', async () => {
     const ea20Url = presidenteEa20Url();
     const validEa20 = await signEdDSA(ea20Sample);

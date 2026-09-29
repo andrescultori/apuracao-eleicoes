@@ -28,7 +28,15 @@ export class AppContext {
   state: AppState = createInitialState();
   sim: SimState = buildInitialHistory();
   mockProvider: DataProvider = createMockDataProvider(() => this.sim);
-  tseProvider: DataProvider = createTseDataProvider(() => this.state.tseEnv);
+  // O 3º argumento é chamado quando uma busca em segundo plano termina (ver
+  // tseDataProvider.ts) — sem ele, a tela só refletiria dados novos na
+  // próxima renderização disparada por outra coisa (ex.: abrir
+  // Configurações), em vez de assim que os dados chegarem.
+  tseProvider: DataProvider = createTseDataProvider(
+    () => this.state.tseEnv,
+    undefined,
+    () => this.update(),
+  );
   onChange: (() => void) | null = null;
 
   constructor() {
