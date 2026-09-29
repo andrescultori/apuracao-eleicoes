@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { verifyJws } from './jws';
+import { findAccompanimentSections, parseEa14Payload } from './tseDataProvider';
 import { getTseVerificationKey } from './tseKeys';
 
 /**
@@ -25,6 +26,7 @@ function findFixture(filename: string): string | null {
 
 const catalogJws = findFixture('ele-c.jws');
 const resultJws = findFixture('br-c0001-e021270-u.jws');
+const accompanimentJws = findFixture('br-e021270-ab.jws');
 
 describe.skipIf(catalogJws === null)('catálogo EA11 real (real/ele-c.jws)', () => {
   it('assinatura confere com a chave de simulado', async () => {
@@ -58,7 +60,28 @@ describe.skipIf(resultJws === null)('resultado EA20 real (real/br-c0001-e021270-
   });
 });
 
-if (catalogJws === null && resultJws === null) {
+describe.skipIf(accompanimentJws === null)('acompanhamento EA14 real (real/br-e021270-ab.jws)', () => {
+  it('assinatura confere com a chave de simulado e o payload decodifica com as seções esperadas', async () => {
+    const { kid, keyPromise } = getTseVerificationKey('simulado');
+    const key = await keyPromise;
+    const decoded = await verifyJws(accompanimentJws as string, key, { allowedAlgs: ['EdDSA'], expectedKid: kid });
+    const payload = parseEa14Payload(decoded.payload);
+    expect(payload.abr).toHaveLength(29);
+    const brasil = findAccompanimentSections(payload, null);
+    expect(brasil).not.toBeNull();
+    expect(brasil?.total).toBeGreaterThan(0);
+  });
+
+  it('assinatura NÃO confere com a chave oficial (ambiente diferente)', async () => {
+    const { kid, keyPromise } = getTseVerificationKey('oficial');
+    const key = await keyPromise;
+    await expect(
+      verifyJws(accompanimentJws as string, key, { allowedAlgs: ['EdDSA'], expectedKid: kid }),
+    ).rejects.toThrow();
+  });
+});
+
+if (catalogJws === null && resultJws === null && accompanimentJws === null) {
   console.warn(
     '[tseRealFixtures.test.ts] Fixtures reais ausentes em src/data/__fixtures__/real/ — testes pulados. ' +
       'Ver src/data/__fixtures__/README.md para como obtê-las (manualmente, nunca via automação).',

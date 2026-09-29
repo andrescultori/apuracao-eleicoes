@@ -1,11 +1,18 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import ea11Sample from './__fixtures__/ea11.sample.json';
+import ea14Sample from './__fixtures__/ea14.sample.json';
 import ea20Sample from './__fixtures__/ea20.sample.json';
 import { parseEa11Catalog, resolveElection } from './ea11';
 import type { FetchLike } from './requestQueue';
 import { RequestQueue } from './requestQueue';
 import { TSE_CONFIG } from './tseConfig';
-import { createTseDataProvider, parseEa20Payload, type Ea20Payload } from './tseDataProvider';
+import {
+  createTseDataProvider,
+  findAccompanimentSections,
+  parseEa14Payload,
+  parseEa20Payload,
+  type Ea20Payload,
+} from './tseDataProvider';
 
 function base64UrlEncode(bytes: Uint8Array): string {
   let binary = '';
@@ -76,6 +83,36 @@ describe('parseEa20Payload', () => {
   });
 });
 
+describe('parseEa14Payload / findAccompanimentSections', () => {
+  it('faz o parsing do arquivo real de acompanhamento (abr[] com UFs + item "br")', () => {
+    const payload = parseEa14Payload(ea14Sample);
+    expect(payload.abr).toHaveLength(3);
+    expect(payload.abr.map((a) => a.cdabr).sort()).toEqual(['br', 'pi', 'sp']);
+  });
+
+  it('encontra a entrada "br" (agregado nacional) quando uf é null', () => {
+    const payload = parseEa14Payload(ea14Sample);
+    const sections = findAccompanimentSections(payload, null);
+    // valores reais do arquivo: s.ts="528951", s.st="528951" (100% totalizado).
+    expect(sections).toEqual({ total: 528951, counted: 528951 });
+  });
+
+  it('encontra a entrada de uma UF específica, casando cdabr em minúsculo', () => {
+    const payload = parseEa14Payload(ea14Sample);
+    const sections = findAccompanimentSections(payload, 'SP');
+    expect(sections).toEqual({ total: 106580, counted: 106580 });
+  });
+
+  it('devolve null quando a UF pedida não está no arquivo', () => {
+    const payload = parseEa14Payload(ea14Sample);
+    expect(findAccompanimentSections(payload, 'RJ')).toBeNull();
+  });
+
+  it('rejeita um payload sem "abr"', () => {
+    expect(() => parseEa14Payload({})).toThrow();
+  });
+});
+
 function fakeFetch(responses: Record<string, string>): FetchLike {
   return async (url: string) => {
     if (!(url in responses)) {
@@ -99,6 +136,38 @@ function presidenteEa20Url(): string {
     cdEleicao: resolved.cdEleicao,
   });
   if (!url) throw new Error('fixture inválida: não foi possível montar a URL do EA20 de teste');
+  return url;
+}
+
+/** URL do EA20 (Governador/SP), derivada do próprio catálogo — nunca hardcoded. */
+function governadorSpEa20Url(): string {
+  const catalog = parseEa11Catalog(ea11Sample);
+  const resolved = resolveElection(catalog, 'governador', 1);
+  if (!resolved) throw new Error('fixture inválida: governador não resolveu no catálogo de teste');
+  const url = TSE_CONFIG.buildResultPath('EA20', 'oficial', catalog, {
+    office: 'governador',
+    uf: 'SP',
+    ciclo: resolved.ciclo,
+    cdEleicao: resolved.cdEleicao,
+  });
+  if (!url) throw new Error('fixture inválida: não foi possível montar a URL do EA20 de teste');
+  return url;
+}
+
+/**
+ * URL do arquivo de acompanhamento (EA14, tipo "ab") de uma eleição — sempre
+ * Brasil-scoped (um único arquivo cobre todas as UFs, ver findAccompanimentSections).
+ */
+function accompanimentUrl(office: Parameters<typeof resolveElection>[1]): string {
+  const catalog = parseEa11Catalog(ea11Sample);
+  const resolved = resolveElection(catalog, office, 1);
+  if (!resolved) throw new Error(`fixture inválida: ${office} não resolveu no catálogo de teste`);
+  const url = TSE_CONFIG.buildAccompanimentPath('oficial', catalog, {
+    uf: null,
+    ciclo: resolved.ciclo,
+    cdEleicao: resolved.cdEleicao,
+  });
+  if (!url) throw new Error('fixture inválida: não foi possível montar a URL do acompanhamento de teste');
   return url;
 }
 
@@ -131,10 +200,12 @@ describe('createTseDataProvider — verificação de assinatura ligada de ponta 
 
   it('chega a "ready" com os dados corretos quando catálogo e resultado têm assinatura EdDSA válida', async () => {
     const ea20Url = presidenteEa20Url();
+    const ea14Url = accompanimentUrl('presidente');
     const queue = new RequestQueue({
       fetchImpl: fakeFetch({
         [OFICIAL_EA11_URL]: await signEdDSA(ea11Sample),
         [ea20Url]: await signEdDSA(ea20Sample),
+        [ea14Url]: await signEdDSA(ea14Sample),
       }),
       intervalMs: 0,
     });
@@ -146,6 +217,32 @@ describe('createTseDataProvider — verificação de assinatura ligada de ponta 
       expect(r.status).toBe('ready');
       expect(r.data?.candidates).toHaveLength(2);
       expect(r.data?.candidates[0]?.name).toBe('CANDIDATO 9987');
+      // Seções totalizadas vêm do acompanhamento (item "br", ver fixture real).
+      expect(r.data?.sectionsTotal).toBe(528951);
+      expect(r.data?.sectionsCounted).toBe(528951);
+    });
+  });
+
+  it('preenche sectionsTotal/sectionsCounted da UF certa para um cargo estadual (Governador/SP)', async () => {
+    const ea20Url = governadorSpEa20Url();
+    const ea14Url = accompanimentUrl('governador');
+    const queue = new RequestQueue({
+      fetchImpl: fakeFetch({
+        [OFICIAL_EA11_URL]: await signEdDSA(ea11Sample),
+        [ea20Url]: await signEdDSA(ea20Sample),
+        [ea14Url]: await signEdDSA(ea14Sample),
+      }),
+      intervalMs: 0,
+    });
+    const provider = createTseDataProvider(() => 'oficial', queue);
+
+    provider.getResults('governador', 'SP', 1);
+    await vi.waitFor(() => {
+      const r = provider.getResults('governador', 'SP', 1);
+      expect(r.status).toBe('ready');
+      // Entrada "sp" da fixture real: s.ts/s.st = "106580" (100% totalizado).
+      expect(r.data?.sectionsTotal).toBe(106580);
+      expect(r.data?.sectionsCounted).toBe(106580);
     });
   });
 
@@ -172,13 +269,15 @@ describe('createTseDataProvider — verificação de assinatura ligada de ponta 
     expect(afterFirstRender.status).not.toBe('ready');
 
     // 1ª notificação: catálogo EA11 terminou. Só agora uma "re-renderização"
-    // chama getResults de novo — o que dispara a busca do resultado EA20.
+    // chama getResults de novo — o que dispara a busca do resultado EA20 e a
+    // do arquivo de acompanhamento (não mockado nesta fixture, então dá 404).
     await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
     const afterSecondRender = provider.getResults('presidente', null, 1);
     expect(afterSecondRender.status).not.toBe('ready');
 
-    // 2ª notificação: resultado EA20 terminou (assinatura verificada).
-    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(2));
+    // Mais 2 notificações: acompanhamento (404 → "erro", não bloqueia) e
+    // resultado EA20 (assinatura verificada) — em qualquer ordem entre si.
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(3));
     const afterThirdRender = provider.getResults('presidente', null, 1);
     expect(afterThirdRender.status).toBe('ready');
     expect(afterThirdRender.data?.candidates).toHaveLength(2);

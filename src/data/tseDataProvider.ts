@@ -130,6 +130,102 @@ export function parseEa20Payload(payload: Ea20Payload, office: OfficeKey, state:
   };
 }
 
+/**
+ * Formato real do payload do arquivo EA14/EA15 (acompanhamento, tipo de
+ * arquivo "ab"), confirmado ao vivo em 29/09/2026 a partir de um arquivo real
+ * do simulado (`br-e021270-ab.jws`, Presidente) — ver nota de fontes em
+ * tseConfig.ts. Um único arquivo Brasil-scoped já traz as 27 UFs (mais "zz",
+ * provavelmente exterior) dentro de `abr[]` — não é preciso buscar o `-ab`
+ * por UF (nunca observado no tráfego, só no JS do app).
+ */
+export interface Ea14Secoes {
+  /** Seções totais. */
+  ts: string;
+  /** Seções totalizadas. */
+  st: string;
+  /** Percentual de seções totalizadas, decimal com vírgula (ex.: "100,00"). */
+  pst: string;
+  /** Como `pst`, mas com mais casas decimais — usado para o cálculo. */
+  pstn: string;
+}
+
+export interface Ea14AbrItem {
+  /** "uf" (27 UFs + "zz", provavelmente exterior) ou "br" (agregado nacional). */
+  tpabr: string;
+  /** Sigla da UF em minúsculo (ex.: "sp") quando `tpabr==="uf"`; "br" quando `tpabr==="br"`. */
+  cdabr: string;
+  s: Ea14Secoes;
+}
+
+export interface Ea14Payload {
+  ele: string;
+  t: string;
+  abr: Ea14AbrItem[];
+}
+
+export interface AccompanimentSections {
+  total: number;
+  counted: number;
+}
+
+export class Ea14ParseError extends Error {}
+
+/**
+ * Valida e converte o JSON bruto do EA14 (já decodificado do JWS) para
+ * `Ea14Payload`. Lança `Ea14ParseError` para qualquer formato inesperado —
+ * nunca aceita um payload parcialmente reconhecido como se fosse válido.
+ */
+export function parseEa14Payload(raw: unknown): Ea14Payload {
+  if (typeof raw !== 'object' || raw === null || !Array.isArray((raw as Record<string, unknown>)['abr'])) {
+    throw new Ea14ParseError('EA14: formato inesperado (campo "abr" ausente ou não é lista)');
+  }
+  const rawAbr = (raw as Record<string, unknown>)['abr'] as unknown[];
+  const abr = rawAbr.map((item): Ea14AbrItem => {
+    if (typeof item !== 'object' || item === null) {
+      throw new Ea14ParseError('EA14: item de abr[] com formato inesperado');
+    }
+    const rec = item as Record<string, unknown>;
+    const s = rec['s'];
+    if (typeof rec['tpabr'] !== 'string' || typeof rec['cdabr'] !== 'string' || typeof s !== 'object' || s === null) {
+      throw new Ea14ParseError('EA14: item de abr[] sem tpabr/cdabr/s válidos');
+    }
+    const secoes = s as Record<string, unknown>;
+    if (typeof secoes['ts'] !== 'string' || typeof secoes['st'] !== 'string' || typeof secoes['pstn'] !== 'string') {
+      throw new Ea14ParseError('EA14: campo "s" sem ts/st/pstn válidos');
+    }
+    return {
+      tpabr: rec['tpabr'],
+      cdabr: rec['cdabr'],
+      s: { ts: secoes['ts'], st: secoes['st'], pst: String(secoes['pst'] ?? ''), pstn: secoes['pstn'] },
+    };
+  });
+  return {
+    ele:
+      typeof (raw as Record<string, unknown>)['ele'] === 'string'
+        ? ((raw as Record<string, unknown>)['ele'] as string)
+        : '',
+    t:
+      typeof (raw as Record<string, unknown>)['t'] === 'string'
+        ? ((raw as Record<string, unknown>)['t'] as string)
+        : '',
+    abr,
+  };
+}
+
+/**
+ * Localiza, em `abr[]`, a entrada certa para o escopo pedido — a agregada
+ * nacional ("br") quando `uf` é `null`, ou a da UF (`cdabr` casado em
+ * minúsculo) quando não é. Devolve `null` quando essa entrada específica não
+ * está no arquivo (nunca inventa um número).
+ */
+export function findAccompanimentSections(payload: Ea14Payload, uf: string | null): AccompanimentSections | null {
+  const item = uf
+    ? payload.abr.find((a) => a.tpabr === 'uf' && a.cdabr === uf.toLowerCase())
+    : payload.abr.find((a) => a.tpabr === 'br');
+  if (!item) return null;
+  return { total: Number(item.s.ts), counted: Number(item.s.st) };
+}
+
 interface ResultCacheRecord {
   status: ProviderStatus;
   data: ElectionResults | null;
@@ -142,6 +238,13 @@ interface CatalogState {
   status: ProviderStatus;
   catalog: Ea11Catalog | null;
   /** true enquanto uma requisição está em voo — evita re-disparar a cada chamada. */
+  fetching: boolean;
+  lastAttemptAt: number | null;
+}
+
+interface AccompanimentState {
+  status: ProviderStatus;
+  payload: Ea14Payload | null;
   fetching: boolean;
   lastAttemptAt: number | null;
 }
@@ -173,6 +276,13 @@ export function createTseDataProvider(
   const resultsCache = new Map<string, ResultCacheRecord>();
   const catalogState: CatalogState = { status: 'unconfigured', catalog: null, fetching: false, lastAttemptAt: null };
   let catalogEnv: TseEnvKey | null = null;
+  /**
+   * Cache do arquivo de acompanhamento (EA14) por `cdEleicao` — não por
+   * cargo/UF, já que um único arquivo Brasil-scoped cobre todas as UFs
+   * daquela eleição (ex.: Governador/Senador/Dep. Federal/Dep. Estadual
+   * compartilham a mesma eleição estadual, logo o mesmo arquivo).
+   */
+  const accompanimentCache = new Map<number, AccompanimentState>();
 
   function keyFor(office: OfficeKey, uf: string | null, turn: Turn): string {
     return `${office}|${uf ?? 'BR'}|${turn}`;
@@ -257,6 +367,62 @@ export function createTseDataProvider(
   }
 
   /**
+   * Busca e faz o parsing do arquivo de acompanhamento (EA14) de uma eleição,
+   * em segundo plano, com cache por `cdEleicao`. Mesmo padrão de `ensureCatalog`
+   * (nunca repete uma busca em voo, respeita o cooldown, nunca descarta o
+   * último payload válido por causa de uma tentativa nova que falhou).
+   */
+  function ensureAccompaniment(
+    env: TseEnvKey,
+    catalog: Ea11Catalog,
+    ciclo: string,
+    cdEleicao: number,
+  ): AccompanimentState {
+    const existing = accompanimentCache.get(cdEleicao);
+    const state: AccompanimentState = existing ?? {
+      status: 'unconfigured',
+      payload: null,
+      fetching: false,
+      lastAttemptAt: null,
+    };
+    if (!existing) accompanimentCache.set(cdEleicao, state);
+
+    if (state.payload || state.fetching) return state;
+    if (state.lastAttemptAt !== null && Date.now() - state.lastAttemptAt < RETRY_COOLDOWN_MS) return state;
+
+    const url = TSE_CONFIG.buildAccompanimentPath(env, catalog, { uf: null, ciclo, cdEleicao });
+    if (!url) {
+      // O catálogo não lista um template para o tipo "ab" — nunca inventar o
+      // restante do caminho; "seções totalizadas" fica indisponível ("—").
+      state.status = 'unconfigured';
+      return state;
+    }
+
+    state.fetching = true;
+    state.lastAttemptAt = Date.now();
+    fetchVerified(env, url)
+      .then((res) => {
+        state.fetching = false;
+        if (res.notFound) {
+          state.status = 'error';
+          return;
+        }
+        try {
+          state.payload = parseEa14Payload(res.payload);
+          state.status = 'ready';
+        } catch {
+          state.status = 'error';
+        }
+      })
+      .catch(() => {
+        state.fetching = false;
+        state.status = 'error';
+      })
+      .finally(() => onUpdate?.());
+    return state;
+  }
+
+  /**
    * Dispara (sem aguardar) uma tentativa de atualização em segundo plano.
    * Nunca apaga o último resultado válido em cache apenas porque a tentativa
    * mais nova falhou.
@@ -281,6 +447,18 @@ export function createTseDataProvider(
     }
 
     const cdEleicao = turn === 2 && resolved.cdEleicaoTurno2 ? resolved.cdEleicaoTurno2 : resolved.cdEleicao;
+
+    // Busca (com cache por cdEleicao, não por cargo/UF) o arquivo de
+    // acompanhamento — nunca bloqueia o resultado principal: se ainda não
+    // chegou, "seções totalizadas" fica "—" até a próxima renderização.
+    const accompaniment = ensureAccompaniment(env, catalog.catalog, resolved.ciclo, cdEleicao);
+    if (entry.data && accompaniment.payload) {
+      const sections = findAccompanimentSections(accompaniment.payload, uf);
+      if (sections) {
+        entry.data = { ...entry.data, sectionsTotal: sections.total, sectionsCounted: sections.counted };
+      }
+    }
+
     const url = TSE_CONFIG.buildResultPath('EA20', env, catalog.catalog, {
       office,
       uf,
@@ -309,6 +487,13 @@ export function createTseDataProvider(
         }
         try {
           entry.data = parseEa20Payload(res.payload as Ea20Payload, office, uf ?? 'BR');
+          if (accompaniment.payload) {
+            const sections = findAccompanimentSections(accompaniment.payload, uf);
+            if (sections) {
+              entry.data.sectionsTotal = sections.total;
+              entry.data.sectionsCounted = sections.counted;
+            }
+          }
           entry.status = 'ready';
           entry.fetchedAt = Date.now();
         } catch {
