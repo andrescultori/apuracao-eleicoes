@@ -43,6 +43,14 @@ export interface ElectionResults {
   candidates: CandidateResult[];
   totalValid: number;
   totalApurados: number;
+  /**
+   * Seções totalizadas — só disponível no modo TSE, quando o arquivo de
+   * acompanhamento (EA14, tipo "ab") já foi obtido e verificado (ver
+   * tseDataProvider.ts). `undefined` quando ainda não disponível; a UI mostra
+   * "—" nesse caso, nunca um 0% inventado.
+   */
+  sectionsTotal?: number;
+  sectionsCounted?: number;
 }
 
 /**

@@ -41,12 +41,14 @@ export function OfficePage(app: AppContext, office: OfficeKey): string {
       prevById[c.id] = c;
     });
 
-  const totalSections = getScopeSections(office, uf);
-  // No modo TSE ainda não buscamos o arquivo de acompanhamento (EA14/EA15),
-  // que é quem publica o número real de seções totalizadas — por isso `null`
-  // aqui (exibido como "—"), nunca um 0% enganoso como se a apuração não
-  // tivesse começado.
-  const countedSections = app.state.dataMode === 'tse' ? null : Math.round(totalSections * app.sim.t);
+  const mockTotalSections = getScopeSections(office, uf);
+  // No modo TSE, o número real de seções totalizadas vem do arquivo de
+  // acompanhamento (EA14/EA15, ver tseDataProvider.ts) — enquanto ele ainda
+  // não chegou, `sectionsTotal`/`sectionsCounted` ficam `undefined` e a UI
+  // mostra "—", nunca um 0% enganoso como se a apuração não tivesse começado.
+  const totalSections = app.state.dataMode === 'tse' ? (results.sectionsTotal ?? 0) : mockTotalSections;
+  const countedSections =
+    app.state.dataMode === 'tse' ? (results.sectionsCounted ?? null) : Math.round(mockTotalSections * app.sim.t);
 
   if (app.state.dataMode === 'tse' && results.providerStatus && results.providerStatus !== 'ready') {
     const message = TSE_STATUS_EMPTY_STATE_MESSAGE[results.providerStatus];
