@@ -63,54 +63,69 @@ The app has two modes, switchable in **Settings**:
 | Build / dev server   | [Vite](https://vitejs.dev)                                 |
 | Language             | TypeScript, `strict` mode                                  |
 | UI                   | Plain HTML/CSS/JS — no framework, one module per component |
-| Tests                | [Vitest](https://vitest.dev) (34 tests)                    |
+| Tests                | [Vitest](https://vitest.dev) (66 tests)                    |
 | Lint / formatting    | ESLint 9 + typescript-eslint, Prettier                     |
 | CI                   | GitHub Actions                                             |
 | Deploy               | GitHub Pages (via Actions) + Netlify (config included)     |
-| Official data source | TSE — EA11 election catalog + EA10/EA20 result files       |
+| Official data source | TSE — EA11 catalog, EA10/EA20 results, EA14/EA15 tracking  |
 
 ## Deliberate technical decision: the real TSE integration
 
 The real integration fetches and parses the TSE's election catalog (the EA11
 file) to dynamically resolve the election code for each office/state — it
-never hardcodes one. That part already works end to end (a request queue with
-concurrency 1, caching via `ETag`/`If-None-Match`, exponential backoff on
-network errors, never retrying a URL that returned 404).
+never hardcodes one — and builds every file's URL from the directory
+_template_ published by the catalog itself (`arq[].dir`), never a path
+hardcoded in the code. Request queue with concurrency 1, caching via
+`ETag`/`If-None-Match`, exponential backoff on network errors, never
+retrying a URL that returned 404.
 
-On 09/28/2026, during an official simulation window, a session with real
-browser access (Claude in Chrome) manually navigated the simulation's own
-official app and confirmed live two things that used to be guesswork:
+Confirmed live, with real browser access during the September 2026
+simulation windows, and tested in this very interface (President, Governor,
+Senator, Federal Deputy, and State Deputy, across several states, with
+auto-refresh and no manual intervention):
 
-- **The TSE's office code** — confirmed against the official documentation
-  ("Instruções para download", section 5) and already filled into
-  `TSE_CONFIG.officeCargoCode`: President `0001`, Governor `0003`, Senator
-  `0005`, Federal Deputy `0006`, State Deputy `0007`. The result-file URL
-  (EA20) is now built end to end.
-- **The signature mechanism** — the files really do ship as a JWS envelope,
-  but signed with **EdDSA (Ed25519)**, not RS256/ES256 as previously
-  suspected. `src/data/jws.ts` already verifies this algorithm (tested with a
-  locally generated key, both a valid and a tampered signature).
+- **The TSE's office code** — President `0001`, Governor `0003`, Senator
+  `0005`, Federal Deputy `0006`, State Deputy `0007`
+  (`TSE_CONFIG.officeCargoCode`), also confirmed in the catalog itself
+  (`cp[].cd`).
+- **Signature verification wired end to end** — files ship as a JWS envelope
+  (EdDSA/Ed25519); both public keys published by the TSE
+  (development/simulation and production/official) are already embedded in
+  `src/data/tseKeys.ts`. No data is accepted without a valid signature, the
+  expected algorithm (`EdDSA`), and a `kid` matching the active environment —
+  a tampered file, one from another environment, or one not yet published is
+  never promoted to "ready".
+- **Section tracking** — comes from the TSE's tracking file (file type
+  "ab", EA14/EA15), confirmed live on 09/29/2026 from a real simulation
+  file: a single Brazil-scoped file already carries all 27 states (plus
+  overseas voting), no per-state file needed.
+- **CORS** — direct browser access to the TSE's domain, no blocking; there's
+  no proxy or serverless function in between, and none is needed.
+- **Configurable percentage basis** — "Settings" lets you choose whether
+  each candidate's percentage is computed over valid votes (default,
+  excludes blank/null ballots) or over total votes counted.
 
-What's **still missing**, documented as an explicit TODO in the code
-(`src/data/tseConfig.ts`, `src/data/tseDataProvider.ts`, `src/data/jws.ts`)
-and never worked around with a guessed value:
+What's **still not confirmed live**, documented explicitly in the code and
+never worked around with a guessed value:
 
-- **The TSE's real public key.** The official verification manual publishes
-  the key as both JWK and X.509, but the appendix read so far (Appendix A) is
-  explicitly a **development** key — "not valid for official results".
-  Without the production key, even a successfully fetched `.jws` file is
-  never promoted to "ready": the app keeps honestly showing "Data unavailable"
-  instead of displaying an unverified value.
-- **The production URL pattern.** Confirmed live only for the simulation
-  environment; the official environment (`resultados.tse.jus.br/oficial`) is
-  still just a symmetric inference, never directly observed (production only
-  opens with pleito 3220, on 10/04/2026, with candidates not yet finalized).
+- **The official environment** (`resultados.tse.jus.br/oficial`). The
+  production public key is already embedded and the verification mechanism
+  has been tested (it rejects the wrong key), but the environment only opens
+  with pleito 3220, on 10/04/2026 — candidates not yet finalized.
+- **State-only result files** (without a municipality). Only the
+  municipality-level pattern has been directly observed live; the app always
+  resolves the path from the catalog's own template, so it never invents
+  this pattern.
+- **2nd round** — uses the same 2nd-round election code (`cdt2`) published
+  by the catalog, but this hasn't been tested against real 2nd-round data
+  yet.
+- **Per-candidate annulled-vote handling** (`dvt`) — every candidate
+  currently appears in the results list regardless of this field; the
+  percentage-basis option handles the aggregate total but doesn't filter
+  individual rows.
 
-This research combined verifiable secondary sources with live manual
-browsing, since direct access to `tse.jus.br` isn't available in the
-environment this code normally runs in. **Before relying on this for a real
-election**, confirm the points above directly against the official
-documentation:
+**Before relying on this for a real election**, confirm the points above
+directly against the official documentation:
 
 - [TSE — technical information on results disclosure](https://www.tse.jus.br/eleicoes/informacoes-tecnicas-sobre-a-divulgacao-de-resultados) (Portuguese only)
 - [JWS file verification manual](https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/divulgacao-de-resultados/manual-verificacao-jws) (Portuguese only)
@@ -147,9 +162,9 @@ dispatcher.
   via Actions on every push to `main`.
 - **Netlify deploy** (alternative, config included): via `netlify.toml`
   (`npm run build`, publishes `dist/`). No secret environment variables are
-  required — the TSE's disclosure files are public and don't require
-  authentication (per the sources consulted; not explicitly confirmed in
-  writing — see the section above).
+  required — the TSE's disclosure files are public and require neither
+  authentication nor a proxy, confirmed by the real fetches this interface
+  made during the simulations (see the section above).
 
 ## Running locally
 
