@@ -1,3 +1,4 @@
+import type { ProviderStatus } from '../data/types';
 import type { AppContext } from '../state/appContext';
 import { timeAgoLabel } from '../state/appContext';
 import { ICONS } from './icons';
@@ -26,11 +27,20 @@ export function Header(app: AppContext): string {
   );
 }
 
+const TSE_STATUS_BANNER_LABEL: Record<ProviderStatus, string> = {
+  ready:
+    'MODO DADOS OFICIAIS (TSE) — conectado ao catálogo do TSE; a assinatura de cada arquivo é verificada antes de exibir dados.',
+  loading: 'MODO DADOS OFICIAIS (TSE) — buscando e verificando os dados do TSE...',
+  error: 'MODO DADOS OFICIAIS (TSE) — não foi possível obter ou verificar os dados do TSE agora. Ver "Sobre os dados".',
+  unconfigured:
+    'MODO DADOS OFICIAIS (TSE) — esta eleição ainda não está disponível no catálogo publicado pelo TSE. Ver "Sobre os dados".',
+};
+
 export function DemoBanner(app: AppContext): string {
   let html: string;
   if (app.state.dataMode === 'tse') {
-    html =
-      '<div class="demo-banner"><div class="shell">ⓘ MODO DADOS OFICIAIS (TSE) — endpoint ainda não configurado nesta versão. Ver "Sobre os dados".</div></div>';
+    const label = TSE_STATUS_BANNER_LABEL[app.electionDataStatus()];
+    html = `<div class="demo-banner"><div class="shell">ⓘ ${label}</div></div>`;
   } else {
     html =
       '<div class="demo-banner"><div class="shell">⚠ MODO DEMONSTRAÇÃO — DADOS FICTÍCIOS, gerados para fins de demonstração da interface.</div></div>';
