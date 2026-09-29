@@ -2,7 +2,15 @@ import { OFFICES } from '../data/domain';
 import { advanceSim, buildInitialHistory, computeResults, createMockDataProvider } from '../data/mockDataProvider';
 import type { SimState } from '../data/mockDataProvider';
 import { createTseDataProvider } from '../data/tseDataProvider';
-import type { CandidateResult, DataProvider, ElectionResults, OfficeKey, ProviderStatus, Turn } from '../data/types';
+import type {
+  CandidateResult,
+  DataProvider,
+  ElectionResults,
+  OfficeKey,
+  ProviderStatus,
+  Turn,
+  VoteBasis,
+} from '../data/types';
 import {
   createInitialState,
   favKey,
@@ -17,6 +25,21 @@ import type { AppState } from './store';
 
 export interface DispatchedResults extends ElectionResults {
   providerStatus?: ProviderStatus;
+}
+
+/**
+ * Recalcula o percentual de cada candidato a partir dos votos brutos, usando
+ * `totalValid` (votos válidos) ou `totalApurados` (votos apurados, incluindo
+ * brancos/nulos) como base — em vez de confiar no percentual já publicado
+ * pelo TSE no arquivo (que vem numa base fixa e não dava pra alternar).
+ */
+function applyVoteBasis(results: ElectionResults, basis: VoteBasis): ElectionResults {
+  const denom = basis === 'total' ? results.totalApurados : results.totalValid;
+  if (!denom) return results;
+  return {
+    ...results,
+    candidates: results.candidates.map((c) => ({ ...c, percentage: (c.votes / denom) * 100 })),
+  };
 }
 
 /**
@@ -95,7 +118,7 @@ export class AppContext {
   getOfficeResults(office: OfficeKey, uf: string | null, turn: Turn): DispatchedResults {
     if (this.state.dataMode === 'tse') {
       const r = this.tseProvider.getResults(office, uf, turn);
-      if (r.status === 'ready' && r.data) return r.data;
+      if (r.status === 'ready' && r.data) return applyVoteBasis(r.data, this.state.voteBasis);
       return { candidates: [], totalValid: 0, totalApurados: 0, providerStatus: r.status };
     }
     return computeResults(office, uf, turn, this.sim.tick, this.sim.t);

@@ -9,14 +9,14 @@ export function SummaryCards(
   app: AppContext,
   results: ElectionResults,
   totalSections: number,
-  countedSections: number,
+  countedSections: number | null,
 ): string {
-  const pct = totalSections ? (countedSections / totalSections) * 100 : 0;
+  const pct = countedSections === null ? null : totalSections ? (countedSections / totalSections) * 100 : 0;
   return (
     '<div class="summary-grid">' +
     '<div class="card"><div class="label">Seções totalizadas</div>' +
-    `<div class="value num">${fmtPct(pct)}<small>%</small></div>` +
-    `<div class="progress-track"><div class="progress-fill" style="width:${clamp(pct, 0, 100)}%"></div></div></div>` +
+    (pct === null ? '<div class="value num">—</div>' : `<div class="value num">${fmtPct(pct)}<small>%</small></div>`) +
+    `<div class="progress-track"><div class="progress-fill" style="width:${pct === null ? 0 : clamp(pct, 0, 100)}%"></div></div></div>` +
     `<div class="card"><div class="label">Votos apurados</div><div class="value num">${fmtInt(results.totalApurados)}</div></div>` +
     `<div class="card"><div class="label">Votos válidos</div><div class="value num">${fmtInt(results.totalValid)}</div></div>` +
     `<div class="card"><div class="label">Última atualização</div><div class="value num" style="font-size:19px;">${lastUpdateClock(app)}</div></div>` +

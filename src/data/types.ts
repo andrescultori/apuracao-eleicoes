@@ -80,6 +80,14 @@ export type DataMode = 'mock' | 'tse';
 export type TseEnv = 'oficial' | 'simulado';
 export type PageKey = 'overview' | 'favorites' | 'about' | OfficeKey;
 
+/**
+ * Base usada para calcular o percentual de cada candidato, no modo TSE:
+ * 'valid' = sobre votos válidos (exclui brancos/nulos, convenção usual de
+ * apuração no Brasil); 'total' = sobre votos apurados (inclui brancos/nulos).
+ * Só afeta o modo TSE — o modo demonstração já usa sua própria simulação.
+ */
+export type VoteBasis = 'valid' | 'total';
+
 export interface HistoryPoint {
   tick: number;
   t: number;

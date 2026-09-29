@@ -51,6 +51,14 @@ export function SettingsModal(app: AppContext): string {
     `<button aria-pressed="${app.state.tseEnv === 'simulado'}" data-action="set-tseenv" data-value="simulado" ${app.state.dataMode !== 'tse' ? 'disabled' : ''}>Simulado</button>` +
     '</div>' +
     '</div>' +
+    '<div class="modal-section">' +
+    '<div class="label">Base do percentual (modo TSE)</div>' +
+    '<div class="radio-row" role="radiogroup" aria-label="Base do percentual">' +
+    `<button aria-pressed="${app.state.voteBasis === 'valid'}" data-action="set-votebasis" data-value="valid" ${app.state.dataMode !== 'tse' ? 'disabled' : ''}>Votos válidos</button>` +
+    `<button aria-pressed="${app.state.voteBasis === 'total'}" data-action="set-votebasis" data-value="total" ${app.state.dataMode !== 'tse' ? 'disabled' : ''}>Votos totais</button>` +
+    '</div>' +
+    '<div class="row-desc" style="margin-top:7px;">"Votos válidos" exclui brancos e nulos do cálculo (convenção usual de apuração); "Votos totais" inclui todos os votos apurados.</div>' +
+    '</div>' +
     '</div>' +
     '</div>'
   );

@@ -83,6 +83,10 @@ export function setupEvents(app: AppContext, root: HTMLElement): void {
         app.state.tseEnv = el.getAttribute('data-value') as 'oficial' | 'simulado';
         app.persist();
         return;
+      case 'set-votebasis':
+        app.state.voteBasis = el.getAttribute('data-value') as 'valid' | 'total';
+        app.persist();
+        return;
       case 'set-theme':
         app.state.theme = el.getAttribute('data-value') as 'light' | 'dark' | 'system';
         app.persist();
