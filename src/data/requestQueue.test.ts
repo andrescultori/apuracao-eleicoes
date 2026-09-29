@@ -81,6 +81,39 @@ describe('RequestQueue', () => {
     await expect(queue.fetchText('https://example.test/down.jws')).rejects.toThrow('always down');
   });
 
+  it('usa fetch() vinculado a globalThis por padrão (nunca "Illegal invocation")', async () => {
+    // O navegador rejeita `fetch` chamado com um `this` diferente de
+    // window/globalThis — se `RequestQueue` guardasse a função solta (sem
+    // `.bind`), essa checagem de "branding" do WebIDL lançaria TypeError
+    // assim que a chamada acontecesse, antes de qualquer tentativa de rede
+    // (por isso o bug nunca apareceria na aba Network nem no console: cai
+    // direto no catch interno de `runJob`). Simula essa checagem aqui, já
+    // que o `fetch` do ambiente de teste (Node/jsdom) não a reproduz.
+    const originalFetch = globalThis.fetch;
+    let calledWithGlobalThis = false;
+    function brandCheckedFetch(this: unknown): Promise<Response> {
+      if (this !== globalThis) {
+        throw new TypeError("Failed to execute 'fetch' on 'Window': Illegal invocation");
+      }
+      calledWithGlobalThis = true;
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        text: async () => 'ok',
+      } as unknown as Response);
+    }
+    globalThis.fetch = brandCheckedFetch as typeof fetch;
+    try {
+      const queue = new RequestQueue({ intervalMs: 0 });
+      const entry = await queue.fetchText('https://example.test/default-fetch.jws');
+      expect(calledWithGlobalThis).toBe(true);
+      expect(entry.body).toBe('ok');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('usa If-None-Match no cache e trata 304 devolvendo a entrada em cache', async () => {
     let call = 0;
     const fetchImpl: FetchLike = vi.fn(async (_url, init) => {
