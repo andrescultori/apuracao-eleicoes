@@ -9,6 +9,7 @@ import { TSE_CONFIG } from './tseConfig';
 import {
   createTseDataProvider,
   findAccompanimentSections,
+  findElectorado,
   parseEa14Payload,
   parseEa20Payload,
   type Ea20Payload,
@@ -110,6 +111,67 @@ describe('parseEa14Payload / findAccompanimentSections', () => {
 
   it('rejeita um payload sem "abr"', () => {
     expect(() => parseEa14Payload({})).toThrow();
+  });
+
+  it('faz o parsing do eleitorado ("e") quando presente, sem afetar as seções', () => {
+    const payload = parseEa14Payload(ea14Sample);
+    const br = payload.abr.find((a) => a.cdabr === 'br');
+    // valores reais do arquivo: te=163079139, c=138863131, a=24215741.
+    expect(br?.e).toEqual({ te: '163079139', c: '138863131', a: '24215741' });
+  });
+
+  it('não lança quando "e" está presente mas malformado — só omite o eleitorado', () => {
+    const raw = JSON.parse(JSON.stringify(ea14Sample)) as { abr: Array<Record<string, unknown>> };
+    const br = raw.abr.find((a) => a['cdabr'] === 'br');
+    expect(br).toBeDefined();
+    br!['e'] = { te: 'não é número', c: '1' }; // falta "a" e "te" não é numérico-string válido
+    const payload = parseEa14Payload(raw);
+    const parsedBr = payload.abr.find((a) => a.cdabr === 'br');
+    expect(parsedBr?.e).toBeUndefined();
+    // seções continuam funcionando normalmente, mesmo com "e" malformado.
+    expect(findAccompanimentSections(payload, null)).toEqual({ total: 528951, counted: 528951 });
+  });
+
+  it('não lança quando "e" está totalmente ausente', () => {
+    const raw = JSON.parse(JSON.stringify(ea14Sample)) as { abr: Array<Record<string, unknown>> };
+    const br = raw.abr.find((a) => a['cdabr'] === 'br');
+    delete br!['e'];
+    const payload = parseEa14Payload(raw);
+    const parsedBr = payload.abr.find((a) => a.cdabr === 'br');
+    expect(parsedBr?.e).toBeUndefined();
+  });
+});
+
+describe('findElectorado', () => {
+  it('encontra o eleitorado nacional ("br") quando uf é null', () => {
+    const payload = parseEa14Payload(ea14Sample);
+    // te=163079139, c=138863131, a=24215741 — soma 163078872 (resíduo real de 267).
+    expect(findElectorado(payload, null)).toEqual({ total: 163079139, accountedFor: 163078872 });
+  });
+
+  it('encontra o eleitorado de uma UF específica, casando cdabr em minúsculo', () => {
+    const payload = parseEa14Payload(ea14Sample);
+    // sp: te=35745722, c=30433191, a=5312531 — soma exatamente o total.
+    expect(findElectorado(payload, 'SP')).toEqual({ total: 35745722, accountedFor: 35745722 });
+  });
+
+  it('encontra o eleitorado de outra UF (pi), confirmando que não é um valor fixo de teste', () => {
+    const payload = parseEa14Payload(ea14Sample);
+    // pi: te=2763829, c=2355142, a=408687 — soma exatamente o total.
+    expect(findElectorado(payload, 'PI')).toEqual({ total: 2763829, accountedFor: 2763829 });
+  });
+
+  it('devolve null quando a UF pedida não está no arquivo', () => {
+    const payload = parseEa14Payload(ea14Sample);
+    expect(findElectorado(payload, 'RJ')).toBeNull();
+  });
+
+  it('devolve null quando a entrada existe mas não tem campo "e"', () => {
+    const raw = JSON.parse(JSON.stringify(ea14Sample)) as { abr: Array<Record<string, unknown>> };
+    const sp = raw.abr.find((a) => a['cdabr'] === 'sp');
+    delete sp!['e'];
+    const payload = parseEa14Payload(raw);
+    expect(findElectorado(payload, 'SP')).toBeNull();
   });
 });
 
@@ -220,6 +282,9 @@ describe('createTseDataProvider — verificação de assinatura ligada de ponta 
       // Seções totalizadas vêm do acompanhamento (item "br", ver fixture real).
       expect(r.data?.sectionsTotal).toBe(528951);
       expect(r.data?.sectionsCounted).toBe(528951);
+      // Eleitorado (item "br", ver fixture real) também vem do acompanhamento.
+      expect(r.data?.electorateTotal).toBe(163079139);
+      expect(r.data?.electorateAccountedFor).toBe(163078872);
     });
   });
 

@@ -55,6 +55,9 @@ export function CandidateTable(
         '<td class="cand-cell" data-label="Candidato">' +
         `<button class="star-btn ${fav ? 'active' : ''}" data-action="toggle-fav" data-office="${office}" data-uf="${uf ?? ''}" data-turn="${turn}" data-id="${c.id}" aria-label="${fav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}: ${esc(c.name)}" aria-pressed="${fav}">${fav ? '★' : '☆'}</button>` +
         `<span class="cand-name">${esc(c.name)}</span>` +
+        (c.elected
+          ? '<span class="elected-badge" title="Resultado matematicamente decidido mesmo com a apuração em andamento — não é uma proclamação oficial da Justiça Eleitoral.">Eleito matematicamente (não oficial)</span>'
+          : '') +
         '</td>' +
         `<td data-label="Nº" class="num">${esc(c.number)}</td>` +
         `<td data-label="Partido"><span class="party-chip">${esc(c.party)}</span></td>` +
