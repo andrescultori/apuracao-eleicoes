@@ -1,4 +1,5 @@
 import { OFFICES } from '../data/domain';
+import { computeMathematicallyDecided } from '../data/electionMath';
 import { advanceSim, buildInitialHistory, computeResults, createMockDataProvider } from '../data/mockDataProvider';
 import type { SimState } from '../data/mockDataProvider';
 import { createTseDataProvider } from '../data/tseDataProvider';
@@ -39,6 +40,46 @@ function applyVoteBasis(results: ElectionResults, basis: VoteBasis): ElectionRes
   return {
     ...results,
     candidates: results.candidates.map((c) => ({ ...c, percentage: (c.votes / denom) * 100 })),
+  };
+}
+
+/**
+ * Marca `elected: true` no(s) candidato(s) cuja vitória já está
+ * matematicamente garantida, mesmo com a apuração em andamento — nunca uma
+ * projeção estatística, só o pior caso matemático (ver `electionMath.ts`).
+ * NÃO é uma proclamação oficial (sempre um ato da Justiça Eleitoral, depois
+ * da totalização); a UI rotula isso como "Eleito matematicamente (não
+ * oficial)".
+ *
+ * Escopo deliberadamente restrito a Presidente e Governador (`hasRunoff`):
+ * são sempre 1 vaga, e o 1º turno tem uma regra clara de maioria absoluta.
+ * Senador fica de fora por ora — o número de vagas em disputa varia (o
+ * Senado se renova por 1/3 ou 2/3 dependendo do ano) e isso ainda não foi
+ * confirmado nos dados reais. Deputado Federal/Estadual nunca entram aqui:
+ * são eleitos pelo sistema proporcional (quociente eleitoral/partidário),
+ * que depende do total de votos de todos os partidos/coligações — um
+ * cálculo muito mais complexo que o de uma corrida majoritária, fora de
+ * escopo.
+ *
+ * Só atua quando o arquivo de acompanhamento já trouxe o eleitorado
+ * (`electorateTotal`/`electorateAccountedFor` — ver tseDataProvider.ts);
+ * sem isso, não há teto real de votos restantes, e ninguém é marcado.
+ */
+function applyElectionCertainty(results: ElectionResults, office: OfficeKey, turn: Turn): ElectionResults {
+  if (!OFFICES[office].hasRunoff) return results;
+  if (results.electorateTotal === undefined || results.electorateAccountedFor === undefined) return results;
+  const maxRemainingVotes = results.electorateTotal - results.electorateAccountedFor;
+  const decided = computeMathematicallyDecided({
+    votes: results.candidates.map((c) => c.votes),
+    totalValid: results.totalValid,
+    maxRemainingVotes,
+    seats: 1,
+    requiresAbsoluteMajority: turn === 1,
+  });
+  if (!decided.some(Boolean)) return results;
+  return {
+    ...results,
+    candidates: results.candidates.map((c, i) => (decided[i] ? { ...c, elected: true } : c)),
   };
 }
 
@@ -118,7 +159,9 @@ export class AppContext {
   getOfficeResults(office: OfficeKey, uf: string | null, turn: Turn): DispatchedResults {
     if (this.state.dataMode === 'tse') {
       const r = this.tseProvider.getResults(office, uf, turn);
-      if (r.status === 'ready' && r.data) return applyVoteBasis(r.data, this.state.voteBasis);
+      if (r.status === 'ready' && r.data) {
+        return applyElectionCertainty(applyVoteBasis(r.data, this.state.voteBasis), office, turn);
+      }
       return { candidates: [], totalValid: 0, totalApurados: 0, providerStatus: r.status };
     }
     return computeResults(office, uf, turn, this.sim.tick, this.sim.t);

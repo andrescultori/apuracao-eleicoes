@@ -149,12 +149,31 @@ export interface Ea14Secoes {
   pstn: string;
 }
 
+/**
+ * Eleitorado do escopo (UF ou Brasil), presente no mesmo arquivo real usado
+ * para `Ea14Secoes`. `te` é o eleitorado total apto
+ * a votar; `c`/`a` (comparecimento/abstenção) são acumulados só nas seções
+ * já totalizadas — por isso `te - (c + a)` é o teto de eleitores cujo voto
+ * ainda não foi contabilizado, usado em `electionMath.ts`. Campo opcional:
+ * nem todo payload precisa ter esse detalhe para "seções totalizadas"
+ * continuar funcionando (ver `Ea14AbrItem.e`).
+ */
+export interface Ea14Eleitorado {
+  /** Eleitorado total do escopo — assumido fixo, independente da apuração (não confirmado com uma amostra parcial real). */
+  te: string;
+  /** Comparecimento acumulado nas seções já totalizadas. */
+  c: string;
+  /** Abstenção acumulada nas seções já totalizadas. */
+  a: string;
+}
+
 export interface Ea14AbrItem {
   /** "uf" (27 UFs + "zz", provavelmente exterior) ou "br" (agregado nacional). */
   tpabr: string;
   /** Sigla da UF em minúsculo (ex.: "sp") quando `tpabr==="uf"`; "br" quando `tpabr==="br"`. */
   cdabr: string;
   s: Ea14Secoes;
+  e?: Ea14Eleitorado;
 }
 
 export interface Ea14Payload {
@@ -193,10 +212,21 @@ export function parseEa14Payload(raw: unknown): Ea14Payload {
     if (typeof secoes['ts'] !== 'string' || typeof secoes['st'] !== 'string' || typeof secoes['pstn'] !== 'string') {
       throw new Ea14ParseError('EA14: campo "s" sem ts/st/pstn válidos');
     }
+    const eRaw = rec['e'];
+    let eleitorado: Ea14Eleitorado | undefined;
+    if (typeof eRaw === 'object' && eRaw !== null) {
+      const eRec = eRaw as Record<string, unknown>;
+      if (typeof eRec['te'] === 'string' && typeof eRec['c'] === 'string' && typeof eRec['a'] === 'string') {
+        eleitorado = { te: eRec['te'], c: eRec['c'], a: eRec['a'] };
+      }
+      // Se "e" existir mas sem te/c/a válidos, segue sem eleitorado — nunca
+      // lança por causa disso, já que "seções totalizadas" não depende dele.
+    }
     return {
       tpabr: rec['tpabr'],
       cdabr: rec['cdabr'],
       s: { ts: secoes['ts'], st: secoes['st'], pst: String(secoes['pst'] ?? ''), pstn: secoes['pstn'] },
+      e: eleitorado,
     };
   });
   return {
@@ -224,6 +254,36 @@ export function findAccompanimentSections(payload: Ea14Payload, uf: string | nul
     : payload.abr.find((a) => a.tpabr === 'br');
   if (!item) return null;
   return { total: Number(item.s.ts), counted: Number(item.s.st) };
+}
+
+export interface Electorado {
+  total: number;
+  accountedFor: number;
+}
+
+/**
+ * Como `findAccompanimentSections`, mas devolve o eleitorado (`e`) da
+ * entrada em vez das seções (`s`) — usado só para "eleito matematicamente"
+ * (ver `electionMath.ts`). Devolve `null` quando a entrada não existe ou não
+ * tem o campo `e` (nunca inventa um número).
+ */
+export function findElectorado(payload: Ea14Payload, uf: string | null): Electorado | null {
+  const item = uf
+    ? payload.abr.find((a) => a.tpabr === 'uf' && a.cdabr === uf.toLowerCase())
+    : payload.abr.find((a) => a.tpabr === 'br');
+  if (!item?.e) return null;
+  return { total: Number(item.e.te), accountedFor: Number(item.e.c) + Number(item.e.a) };
+}
+
+/** Mescla seções totalizadas e eleitorado (quando disponíveis) num `ElectionResults` já existente. */
+function mergeAccompaniment(data: ElectionResults, payload: Ea14Payload, uf: string | null): ElectionResults {
+  const sections = findAccompanimentSections(payload, uf);
+  const electorado = findElectorado(payload, uf);
+  return {
+    ...data,
+    ...(sections ? { sectionsTotal: sections.total, sectionsCounted: sections.counted } : {}),
+    ...(electorado ? { electorateTotal: electorado.total, electorateAccountedFor: electorado.accountedFor } : {}),
+  };
 }
 
 interface ResultCacheRecord {
@@ -453,10 +513,7 @@ export function createTseDataProvider(
     // chegou, "seções totalizadas" fica "—" até a próxima renderização.
     const accompaniment = ensureAccompaniment(env, catalog.catalog, resolved.ciclo, cdEleicao);
     if (entry.data && accompaniment.payload) {
-      const sections = findAccompanimentSections(accompaniment.payload, uf);
-      if (sections) {
-        entry.data = { ...entry.data, sectionsTotal: sections.total, sectionsCounted: sections.counted };
-      }
+      entry.data = mergeAccompaniment(entry.data, accompaniment.payload, uf);
     }
 
     const url = TSE_CONFIG.buildResultPath('EA20', env, catalog.catalog, {
@@ -488,11 +545,7 @@ export function createTseDataProvider(
         try {
           entry.data = parseEa20Payload(res.payload as Ea20Payload, office, uf ?? 'BR');
           if (accompaniment.payload) {
-            const sections = findAccompanimentSections(accompaniment.payload, uf);
-            if (sections) {
-              entry.data.sectionsTotal = sections.total;
-              entry.data.sectionsCounted = sections.counted;
-            }
+            entry.data = mergeAccompaniment(entry.data, accompaniment.payload, uf);
           }
           entry.status = 'ready';
           entry.fetchedAt = Date.now();

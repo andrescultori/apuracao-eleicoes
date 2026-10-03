@@ -37,6 +37,13 @@ export interface CandidateResult extends Candidate {
   votes: number;
   percentage: number;
   position: number;
+  /**
+   * `true` quando a vitória já está matematicamente garantida, mesmo no pior
+   * caso para os votos que ainda faltam apurar (ver `electionMath.ts`) — não
+   * é uma projeção estatística nem uma proclamação oficial. Só calculado no
+   * modo TSE, para Presidente e Governador (ver `appContext.ts`).
+   */
+  elected?: boolean;
 }
 
 export interface ElectionResults {
@@ -51,6 +58,16 @@ export interface ElectionResults {
    */
   sectionsTotal?: number;
   sectionsCounted?: number;
+  /**
+   * Eleitorado total do escopo (UF ou Brasil) e quanto dele já foi
+   * contabilizado (comparecimento + abstenção) nas seções já totalizadas —
+   * vem do mesmo arquivo de acompanhamento que `sectionsTotal`/`sectionsCounted`.
+   * Usado só para o cálculo de "eleito matematicamente" (ver
+   * `electionMath.ts`): a diferença entre os dois é o teto de votos que ainda
+   * podem aparecer, no pior caso. `undefined` quando ainda não disponível.
+   */
+  electorateTotal?: number;
+  electorateAccountedFor?: number;
 }
 
 /**
