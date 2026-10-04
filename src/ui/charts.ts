@@ -19,7 +19,7 @@ export function VoteChart(
       const fav = app.isFav(turn, office, uf, c.id);
       return (
         '<div class="bar-row">' +
-        `<div class="bar-label">${fav ? '★ ' : ''}${esc(c.name)}</div>` +
+        `<div class="bar-label" title="${esc(c.name)}">${fav ? '★ ' : ''}${esc(c.ballotName)}</div>` +
         `<div class="bar-track"><div class="bar-fill ${fav ? 'fav' : ''}" style="width:${clamp(c.percentage, 0, 100)}%"></div></div>` +
         `<div class="bar-pct num">${fmtPct(c.percentage)}%</div>` +
         '</div>'
@@ -134,7 +134,7 @@ export function EvolutionChart(app: AppContext, office: OfficeKey, turn: Turn, u
       .slice(0, Math.min(4, latest.candidates.length));
     const labels = hist.map((h) => lastUpdateWallClock(h.fetchedAt));
     const series: EvolutionSeries[] = top.map((cand, ci) => ({
-      name: cand.name,
+      name: cand.ballotName,
       color: PALETTE[ci % PALETTE.length]!,
       pts: hist.map((h) => h.candidates.find((c) => c.id === cand.id)?.percentage ?? 0),
     }));
@@ -151,7 +151,7 @@ export function EvolutionChart(app: AppContext, office: OfficeKey, turn: Turn, u
   const hist = app.sim.history;
   const labels = hist.map((h) => h.label);
   const series: EvolutionSeries[] = top.map((cand, ci) => ({
-    name: cand.name,
+    name: cand.ballotName,
     color: PALETTE[ci % PALETTE.length]!,
     pts: hist.map((h) => {
       const res = app.computeResultsAt(office, uf, turn, h.tick, h.t);

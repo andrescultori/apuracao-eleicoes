@@ -23,8 +23,8 @@ export function FavoritesBar(app: AppContext): string {
       const scopeLabel = r.uf ?? 'BR';
       return (
         `<button class="fav-chip" data-action="go" data-page="${r.office}" data-uf="${r.uf ?? ''}" data-turn="${r.turn}" ` +
-        `title="${esc(cfg.label)}${r.uf ? ' · ' + r.uf : ''} · ${r.turn}º turno">` +
-        `${STAR_SM}<span class="fav-chip-name">${esc(r.candidate.name)}</span>` +
+        `title="${esc(r.candidate.name)} · ${esc(cfg.label)}${r.uf ? ' · ' + r.uf : ''} · ${r.turn}º turno">` +
+        `${STAR_SM}<span class="fav-chip-name">${esc(r.candidate.ballotName)}</span>` +
         `<span class="fav-chip-meta">${esc(cfg.short)} · ${esc(scopeLabel)}</span>` +
         `<span class="fav-chip-pct num">${fmtPct(r.candidate.percentage)}%</span>` +
         '</button>'

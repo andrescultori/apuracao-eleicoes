@@ -31,7 +31,7 @@ export interface DispatchedResults extends ElectionResults {
 /** Um ponto no histórico de percentuais de uma corrida — ver `AppContext.getResultsHistory`. */
 export interface ResultsHistoryPoint {
   fetchedAt: number;
-  candidates: { id: string; name: string; percentage: number }[];
+  candidates: { id: string; ballotName: string; percentage: number }[];
 }
 
 /**
@@ -120,7 +120,15 @@ export class AppContext {
    * demonstração também não é persistido.
    */
   private resultsHistory = new Map<string, ResultsHistoryPoint[]>();
-  private static readonly MAX_HISTORY_POINTS = 60;
+  // Um ponto a cada busca de verdade (a cada tick da autoatualização, que
+  // pode ser configurada pra até 10s) deixava o eixo X do gráfico de
+  // evolução cobrindo só alguns minutos — perto demais pra enxergar
+  // variação real (percentual de votos não muda muito de minuto a minuto).
+  // Espaçar os pontos no mínimo esse intervalo faz o eixo cobrir um período
+  // bem maior (horas, não minutos) à medida que a sessão continua, qualquer
+  // que seja o intervalo de autoatualização escolhido.
+  private static readonly MIN_HISTORY_INTERVAL_MS = 5 * 60 * 1000;
+  private static readonly MAX_HISTORY_POINTS = 120;
 
   constructor() {
     loadPersisted(this.state);
@@ -205,12 +213,15 @@ export class AppContext {
   ): void {
     const key = this.historyKey(office, uf, turn);
     const list = this.resultsHistory.get(key) ?? [];
+    const last = list[list.length - 1];
     // `getOfficeResults` é chamado a cada render, não só quando dados novos
-    // chegam — sem isso, cada render repetiria o último ponto.
-    if (list.length && list[list.length - 1]!.fetchedAt === fetchedAt) return;
+    // chegam — sem isso, cada render repetiria o último ponto. Além disso,
+    // só registra um ponto novo depois do intervalo mínimo (ver
+    // MIN_HISTORY_INTERVAL_MS) — o primeiro ponto é sempre registrado.
+    if (last && fetchedAt - last.fetchedAt < AppContext.MIN_HISTORY_INTERVAL_MS) return;
     list.push({
       fetchedAt,
-      candidates: results.candidates.map((c) => ({ id: c.id, name: c.name, percentage: c.percentage })),
+      candidates: results.candidates.map((c) => ({ id: c.id, ballotName: c.ballotName, percentage: c.percentage })),
     });
     if (list.length > AppContext.MAX_HISTORY_POINTS) list.shift();
     this.resultsHistory.set(key, list);
