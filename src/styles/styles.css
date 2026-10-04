@@ -967,12 +967,20 @@ table.results tbody tr:hover {
   cursor: pointer;
   padding: 0;
   min-height: 0;
-  transition: transform 0.1s ease;
+  transition:
+    filter 0.1s ease,
+    box-shadow 0.1s ease;
 }
+/* Antes usava `transform: scale(1.08)` — numa grade apertada (gap: 3px),
+   aumentar a caixa do elemento no hover expande a área de hit-test sobre os
+   vizinhos, fazendo o mouse entrar e sair do hover repetidamente (relatado
+   como os quadradinhos "piscando"). `filter`/`box-shadow` dão o mesmo
+   destaque visual sem alterar a geometria da caixa. */
 .map-cell:hover {
-  transform: scale(1.08);
   z-index: 1;
   border-color: var(--border-strong);
+  box-shadow: 0 0 0 2px var(--border-strong);
+  filter: brightness(1.08);
 }
 .map-cell.selected {
   outline: 2px solid var(--accent);
