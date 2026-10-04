@@ -923,7 +923,7 @@ table.results tbody tr:hover {
   margin-bottom: 0;
 }
 .bar-label {
-  width: 150px;
+  width: 210px;
   flex: none;
   font-size: 12.5px;
   font-weight: 600;
