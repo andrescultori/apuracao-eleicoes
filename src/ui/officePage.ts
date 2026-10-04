@@ -66,7 +66,6 @@ export function OfficePage(app: AppContext, office: OfficeKey): string {
   return (
     '<div class="stack">' +
     FilterBar(app, office) +
-    (supportsMap(office) ? BrazilMap(app, office, app.state.turn) : '') +
     SummaryCards(app, results, totalSections, countedSections) +
     UpdateRow(app) +
     FavoritesSection(app, office, app.state.turn, uf, results) +
@@ -75,6 +74,7 @@ export function OfficePage(app: AppContext, office: OfficeKey): string {
     CandidateTable(app, office, app.state.turn, uf, results, prevById) +
     '</div>' +
     EvolutionChart(app, office, app.state.turn, uf) +
+    (supportsMap(office) ? BrazilMap(app, office, app.state.turn) : '') +
     '</div>'
   );
 }
