@@ -1,6 +1,7 @@
 import type { CandidateResult, ElectionResults, OfficeKey, Turn } from '../data/types';
 import type { AppContext } from '../state/appContext';
 import { esc, fmtInt, fmtPct } from '../util';
+import { ElectedBadgeBlock } from './electedBadge';
 
 export function renderDeltaVotes(cur: CandidateResult, prev: CandidateResult | undefined): string {
   // Sem ponto anterior pra comparar (sempre o caso no modo TSE, e no modo
@@ -66,9 +67,7 @@ export function CandidateTable(
         '<td class="cand-cell" data-label="Candidato">' +
         `<button class="star-btn ${fav ? 'active' : ''}" data-action="toggle-fav" data-office="${office}" data-uf="${uf ?? ''}" data-turn="${turn}" data-id="${c.id}" aria-label="${fav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}: ${esc(c.ballotName)}" aria-pressed="${fav}">${fav ? '★' : '☆'}</button>` +
         `<span class="cand-name" title="${esc(c.name)}">${esc(c.ballotName)}</span>` +
-        (c.elected
-          ? '<span class="elected-badge" title="Resultado matematicamente decidido mesmo com a apuração em andamento — não é uma proclamação oficial da Justiça Eleitoral.">Eleito matematicamente (não oficial)</span>'
-          : '') +
+        (c.elected ? ElectedBadgeBlock() : '') +
         '</td>' +
         `<td data-label="Nº" class="num">${esc(c.number)}</td>` +
         `<td data-label="Partido"><span class="party-chip">${esc(c.party)}</span></td>` +

@@ -4,6 +4,7 @@ import type { AppContext } from '../state/appContext';
 import { resolveFavoriteKey } from '../state/appContext';
 import { searchAllCandidates } from '../state/candidateSearch';
 import { esc, fmtInt, fmtPct } from '../util';
+import { ElectedBadgeBlock, ElectedBadgeCompact } from './electedBadge';
 import { ICONS } from './icons';
 
 const STAR_SM = ICONS.star.replace('<svg ', '<svg style="width:13px;height:13px;color:var(--favorite);" ');
@@ -22,6 +23,7 @@ export function FavoritesSection(
       (c) =>
         '<div class="fav-card">' +
         `<div class="fav-name" title="${esc(c.name)}">${STAR_SM} ${esc(c.ballotName)}</div>` +
+        (c.elected ? ElectedBadgeBlock() : '') +
         `<div class="fav-meta">${OFFICES[office].label}${OFFICES[office].scope !== 'national' ? ' · ' + uf : ''} · ${esc(c.party)} ${esc(c.number)}</div>` +
         `<div class="fav-stats num">${fmtInt(c.votes)} votos · ${fmtPct(c.percentage)}% · ${c.position}º lugar</div>` +
         `<button class="fav-remove" data-action="unfav" data-office="${office}" data-uf="${uf ?? ''}" data-turn="${turn}" data-id="${c.id}">Remover dos favoritos</button>` +
@@ -63,7 +65,7 @@ function FavoritesSearchPanel(app: AppContext): string {
           '<div class="search-result-row">' +
           `<button class="star-btn ${fav ? 'active' : ''}" data-action="toggle-fav" data-office="${office}" data-uf="${uf ?? ''}" data-turn="${app.state.turn}" data-id="${c.id}" aria-label="${fav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}: ${esc(c.ballotName)}" aria-pressed="${fav}">${fav ? '★' : '☆'}</button>` +
           '<div class="search-result-info">' +
-          `<div class="cand-name" title="${esc(c.name)}">${esc(c.ballotName)}</div>` +
+          `<div class="cand-name" title="${esc(c.name)}">${esc(c.ballotName)}${c.elected ? ' ' + ElectedBadgeCompact() : ''}</div>` +
           `<div class="fav-meta">${cfg.label}${uf ? ' · ' + uf : ''} · <span class="party-chip">${esc(c.party)}</span> ${esc(c.number)}</div>` +
           '</div>' +
           '</div>'
@@ -113,6 +115,7 @@ export function FavoritesPage(app: AppContext): string {
         return (
           '<div class="fav-card">' +
           `<div class="fav-name" title="${esc(cand.name)}">${STAR_SM} ${esc(cand.ballotName)}</div>` +
+          (cand.elected ? ElectedBadgeBlock() : '') +
           `<div class="fav-meta">${cfg.label}${favUf ? ' · ' + favUf : ''} · ${turn}º turno · ${esc(cand.party)} ${esc(cand.number)}</div>` +
           `<div class="fav-stats num">${fmtInt(cand.votes)} votos · ${fmtPct(cand.percentage)}% · ${cand.position}º lugar</div>` +
           `<button class="fav-remove" data-action="unfav-key" data-key="${esc(k)}">Remover dos favoritos</button>` +

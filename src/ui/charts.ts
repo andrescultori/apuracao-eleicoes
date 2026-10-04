@@ -4,6 +4,7 @@ import type { ElectionResults, OfficeKey, Turn } from '../data/types';
 import type { AppContext } from '../state/appContext';
 import { lastUpdateWallClock } from '../state/appContext';
 import { clamp, esc, fmtPct } from '../util';
+import { ElectedBadgeCompact } from './electedBadge';
 
 export function VoteChart(
   app: AppContext,
@@ -20,6 +21,7 @@ export function VoteChart(
       return (
         '<div class="bar-row">' +
         `<div class="bar-label" title="${esc(c.name)}">${fav ? '★ ' : ''}${esc(c.ballotName)}</div>` +
+        (c.elected ? ElectedBadgeCompact() : '') +
         `<div class="bar-track"><div class="bar-fill ${fav ? 'fav' : ''}" style="width:${clamp(c.percentage, 0, 100)}%"></div></div>` +
         `<div class="bar-pct num">${fmtPct(c.percentage)}%</div>` +
         '</div>'
