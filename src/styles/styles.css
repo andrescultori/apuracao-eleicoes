@@ -861,6 +861,79 @@ table.results tbody tr:hover {
   padding: 16px;
   box-shadow: var(--shadow);
 }
+
+/* mapa do Brasil (cartograma de grade) */
+.map-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+  margin-bottom: 16px;
+}
+.brazil-map {
+  display: grid;
+  gap: 3px;
+  max-width: 420px;
+  aspect-ratio: 8 / 9;
+}
+.map-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+  min-height: 0;
+  transition: transform 0.1s ease;
+}
+.map-cell:hover {
+  transform: scale(1.08);
+  z-index: 1;
+  border-color: var(--border-strong);
+}
+.map-cell.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.map-cell.no-data {
+  cursor: default;
+}
+.map-cell-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.65);
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+}
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.map-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.map-legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  flex: none;
+}
+.map-legend-swatch.light {
+  background: hsl(215, 60%, 84%);
+}
+.map-legend-swatch.dark {
+  background: hsl(215, 55%, 40%);
+}
+
 .bar-row {
   display: flex;
   align-items: center;
