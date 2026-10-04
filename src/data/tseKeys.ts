@@ -60,13 +60,15 @@ const importedKeyCache = new Map<TseEnvKey, Promise<CryptoKey>>();
  * Importa (e cacheia) a chave pública de verificação do ambiente informado.
  * `key_ops`/`use` do JWK vêm restritos a "verify" — importante passar
  * `usages: ['verify']` (nunca `['sign']`) para o Web Crypto aceitar o JWK tal
- * como publicado.
+ * como publicado. Importada como `extractable: true` — não é um segredo (é a
+ * chave PÚBLICA), e `jws.ts` precisa exportar os bytes brutos dela para
+ * verificar a assinatura Ed25519 fora do Web Crypto (ver nota em jws.ts).
  */
 export function getTseVerificationKey(env: TseEnvKey): { kid: string; keyPromise: Promise<CryptoKey> } {
   const config = TSE_JWS_KEYS[env];
   let keyPromise = importedKeyCache.get(env);
   if (!keyPromise) {
-    keyPromise = crypto.subtle.importKey('jwk', config.jwk, { name: 'Ed25519' }, false, ['verify']);
+    keyPromise = crypto.subtle.importKey('jwk', config.jwk, { name: 'Ed25519' }, true, ['verify']);
     importedKeyCache.set(env, keyPromise);
   }
   return { kid: config.kid, keyPromise };

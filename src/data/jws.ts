@@ -35,14 +35,32 @@
  *  - localiza o algoritmo declarado no header (`alg`) e opcionalmente restringe
  *    a um conjunto permitido (`allowedAlgs`) e confere o `kid` esperado
  *    (`expectedKid`) — ver `VerifyJwsOptions`;
- *  - verifica a assinatura via Web Crypto (SubtleCrypto), a partir de uma
- *    CryptoKey pública fornecida pelo chamador (ver `tseKeys.ts` para como o
- *    TSE resolve essa chave por ambiente);
+ *  - verifica a assinatura a partir de uma CryptoKey pública fornecida pelo
+ *    chamador (ver `tseKeys.ts` para como o TSE resolve essa chave por
+ *    ambiente);
  *  - só devolve o payload decodificado quando a assinatura é válida.
  *
  * Nunca aceitar um payload cuja assinatura não verifique — nesse caso o
  * chamador deve tratar como "dados indisponíveis", nunca exibir como oficial.
+ *
+ * EdDSA (Ed25519) — único algoritmo que o TSE usa de verdade — é verificado
+ * com `@noble/curves` (implementação em JS puro, auditada), não com
+ * `crypto.subtle.verify`: reportado por um usuário real em 04/10/2026 que o
+ * modo "Dados oficiais" nunca carregava no iPhone (iOS 26.6.1, Chrome e
+ * Firefox — ambos rodam sobre o WebKit do Safari no iOS, então o motor é o
+ * mesmo), mesmo com o mesmo app funcionando normalmente no desktop. Suporte a
+ * Ed25519 no Web Crypto do Safari só chegou na versão 17 (set/2023), e há bug
+ * documentado do WebKit na implementação de Ed25519 (webkit.org/b/262499) —
+ * ou seja, mesmo num iOS atual, `crypto.subtle.verify` para Ed25519 não é
+ * confiável. A chave pública continua importada via Web Crypto (só a
+ * exportação dos bytes brutos, `exportKey('raw', ...)`, não a verificação de
+ * assinatura em si — operação bem mais simples, sem o mesmo risco) para não
+ * duplicar a lógica de `tseKeys.ts`. Os demais algoritmos (RS256 etc. —
+ * nunca usados pelo TSE, mantidos só pela genericidade do verificador)
+ * continuam em `crypto.subtle.verify`.
  */
+
+import { ed25519 } from '@noble/curves/ed25519.js';
 
 export interface DecodedJws {
   header: Record<string, unknown>;
@@ -132,19 +150,34 @@ export async function verifyJws(
   const signingInput = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
   const signature = base64UrlToUint8Array(signatureB64);
 
-  const verifyAlgorithm: AlgorithmIdentifier | RsaPssParams | EcdsaParams =
-    algSpec.name === 'RSA-PSS'
-      ? { name: 'RSA-PSS', saltLength: 32 }
-      : algSpec.name === 'ECDSA'
-        ? { name: 'ECDSA', hash: algSpec.hash! }
-        : { name: algSpec.name }; // Ed25519 (EdDSA) e RSASSA-PKCS1-v1_5 não levam parâmetro de hash aqui
-
-  const valid = await crypto.subtle.verify(
-    verifyAlgorithm,
-    publicKey,
-    signature as BufferSource,
-    signingInput as BufferSource,
-  );
+  let valid: boolean;
+  if (algSpec.name === 'Ed25519') {
+    // Ver nota no topo do arquivo: `crypto.subtle.verify` para Ed25519 não é
+    // confiável em todo navegador (bug conhecido do WebKit/iOS), então a
+    // verificação em si usa `@noble/curves` (JS puro, auditado). Só a
+    // exportação dos bytes brutos da chave pública passa pelo Web Crypto —
+    // uma operação de formato, não uma computação criptográfica, sem o mesmo
+    // risco de implementação.
+    const rawPublicKey = new Uint8Array(await crypto.subtle.exportKey('raw', publicKey));
+    try {
+      valid = ed25519.verify(signature, signingInput, rawPublicKey);
+    } catch {
+      valid = false;
+    }
+  } else {
+    const verifyAlgorithm: AlgorithmIdentifier | RsaPssParams | EcdsaParams =
+      algSpec.name === 'RSA-PSS'
+        ? { name: 'RSA-PSS', saltLength: 32 }
+        : algSpec.name === 'ECDSA'
+          ? { name: 'ECDSA', hash: algSpec.hash! }
+          : { name: algSpec.name }; // RSASSA-PKCS1-v1_5 não leva parâmetro de hash aqui
+    valid = await crypto.subtle.verify(
+      verifyAlgorithm,
+      publicKey,
+      signature as BufferSource,
+      signingInput as BufferSource,
+    );
+  }
   if (!valid) {
     throw new JwsVerificationError('Assinatura JWS inválida — payload rejeitado');
   }
