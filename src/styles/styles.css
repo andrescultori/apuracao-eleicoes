@@ -133,6 +133,7 @@ a {
 }
 .topbar-inner {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -535,6 +536,7 @@ select.ui,
 /* section headers */
 .section-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
@@ -809,8 +811,9 @@ table.results tbody tr:hover {
     border: none;
     padding: 3px 0;
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
-    gap: 10px;
+    gap: 4px 10px;
     align-items: center;
   }
   table.results td[data-label]::before {
