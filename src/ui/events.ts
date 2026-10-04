@@ -138,14 +138,13 @@ export function setupEvents(app: AppContext, root: HTMLElement): void {
     const target = e.target as HTMLElement;
     if (target.id === 'uf-select') {
       const value = (target as HTMLSelectElement).value;
-      // Reportado em iOS (WebKit): re-renderizar a página inteira (troca de
-      // innerHTML) imediatamente dentro do handler de "change" de um <select>
-      // pode destruir o elemento enquanto o seletor nativo ainda está
-      // fechando — o picker simplesmente some, sem nunca aplicar a escolha.
-      // `blur()` força o fechamento antes de qualquer mudança no DOM, e
-      // adiar a re-renderização para o próximo tick dá tempo do navegador
-      // terminar de desmontar o picker nativo por conta própria.
-      target.blur();
+      // Re-renderizar a página inteira (troca de innerHTML) imediatamente
+      // dentro do handler de "change" de um <select> pode destruir o
+      // elemento antes do navegador terminar de fechar o seletor nativo.
+      // Adiar pro próximo tick dá esse tempo. (Uma tentativa anterior também
+      // chamava `blur()` aqui — removido: um usuário reportou o dropdown
+      // fechando sozinho ainda mais rápido depois disso, então parece ter
+      // piorado, não ajudado.)
       setTimeout(() => {
         app.state.uf = value;
         app.persist();

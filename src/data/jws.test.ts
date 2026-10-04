@@ -89,17 +89,21 @@ describe('verifyJws', () => {
 // EdDSA (Ed25519) é o algoritmo confirmado ao vivo nos arquivos reais do TSE
 // (ver nota de fontes no topo de jws.ts) — cobertura equivalente à do RS256 acima.
 describe('verifyJws — EdDSA (Ed25519), algoritmo real do TSE', () => {
-  let publicKey: CryptoKey;
+  // `publicKey`/`otherPublicKey` são bytes brutos (Uint8Array), não CryptoKey
+  // — é o que `verifyJws` espera para EdDSA agora (ver nota em jws.ts).
+  // `exportKey` aqui só serve pra montar a fixture do teste; o Node não tem
+  // o bug do WebKit que motivou a mudança.
+  let publicKey: Uint8Array;
   let privateKey: CryptoKey;
-  let otherPublicKey: CryptoKey;
+  let otherPublicKey: Uint8Array;
 
   beforeAll(async () => {
-    const keyPair = await crypto.subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify']);
-    publicKey = keyPair.publicKey;
+    const keyPair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+    publicKey = new Uint8Array(await crypto.subtle.exportKey('raw', keyPair.publicKey));
     privateKey = keyPair.privateKey;
 
-    const otherPair = await crypto.subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify']);
-    otherPublicKey = otherPair.publicKey;
+    const otherPair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+    otherPublicKey = new Uint8Array(await crypto.subtle.exportKey('raw', otherPair.publicKey));
   });
 
   it('aceita um JWS EdDSA corretamente assinado e devolve o payload decodificado', async () => {

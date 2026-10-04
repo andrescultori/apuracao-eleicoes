@@ -34,19 +34,23 @@ function base64UrlEncodeString(s: string): string {
  * da verificação, só a chave usada para verificar.
  */
 const TEST_KID = 'test-kid';
-let testPublicKey: CryptoKey;
+// `testPublicKey` são bytes brutos (Uint8Array) — é o que `getTseVerificationKey`
+// devolve de verdade agora (ver nota em tseKeys.ts/jws.ts). `exportKey` aqui só
+// serve pra montar a fixture do teste; o Node não tem o bug do WebKit que
+// motivou a mudança.
+let testPublicKey: Uint8Array;
 let testPrivateKey: CryptoKey;
 
 vi.mock('./tseKeys', () => ({
   getTseVerificationKey: () => ({
     kid: TEST_KID,
-    keyPromise: Promise.resolve().then(() => testPublicKey),
+    rawPublicKey: testPublicKey,
   }),
 }));
 
 beforeAll(async () => {
-  const pair = await crypto.subtle.generateKey({ name: 'Ed25519' }, false, ['sign', 'verify']);
-  testPublicKey = pair.publicKey;
+  const pair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+  testPublicKey = new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey));
   testPrivateKey = pair.privateKey;
 });
 

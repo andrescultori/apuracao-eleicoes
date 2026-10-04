@@ -19,13 +19,22 @@ import type { TseEnvKey } from './tseConfig';
  * verificação foi testada (chave errada é rejeitada, ver jws.test.ts).
  */
 /**
- * O `JsonWebKey` do lib.dom.d.ts não declara `kid` (não é usado pelo
- * WebCrypto na importação) — mas o valor publicado pelo TSE inclui o campo, e
- * é o mesmo texto usado aqui como `kid` de nível superior (conferido contra o
- * header do `.jws` em `verifyJws`/`expectedKid`). Por isso o tipo do JWK é
- * estendido só para aceitar esse campo extra, sem afetar o WebCrypto.
+ * Forma do JWK publicado pelo TSE — só os campos que este módulo realmente
+ * usa (`x`, a chave pública em base64url). Os demais (`kty`/`use`/`key_ops`/
+ * `alg`/`crv`) ficam documentados abaixo tal como publicados, mas não
+ * tipados à parte: o JWK nunca mais passa pelo Web Crypto (ver nota em
+ * `getTseVerificationKey`), então não há motivo pra usar o tipo `JsonWebKey`
+ * do lib.dom.d.ts aqui.
  */
-type TseJsonWebKey = JsonWebKey & { kid: string };
+interface TseJsonWebKey {
+  kty: string;
+  use: string;
+  key_ops: string[];
+  alg: string;
+  kid: string;
+  crv: string;
+  x: string;
+}
 
 export const TSE_JWS_KEYS: Record<TseEnvKey, { kid: string; jwk: TseJsonWebKey }> = {
   simulado: {
@@ -54,22 +63,32 @@ export const TSE_JWS_KEYS: Record<TseEnvKey, { kid: string; jwk: TseJsonWebKey }
   },
 };
 
-const importedKeyCache = new Map<TseEnvKey, Promise<CryptoKey>>();
-
 /**
- * Importa (e cacheia) a chave pública de verificação do ambiente informado.
- * `key_ops`/`use` do JWK vêm restritos a "verify" — importante passar
- * `usages: ['verify']` (nunca `['sign']`) para o Web Crypto aceitar o JWK tal
- * como publicado. Importada como `extractable: true` — não é um segredo (é a
- * chave PÚBLICA), e `jws.ts` precisa exportar os bytes brutos dela para
- * verificar a assinatura Ed25519 fora do Web Crypto (ver nota em jws.ts).
+ * Decodifica o campo `x` do JWK (base64url) para os 32 bytes brutos da chave
+ * pública Ed25519 — sem passar pelo Web Crypto (`crypto.subtle.importKey`).
+ *
+ * Isso não é só por simetria com a verificação em `jws.ts` (que já usa
+ * `@noble/curves`, não `crypto.subtle.verify`, por causa de um bug do WebKit
+ * na implementação de Ed25519 — ver nota lá): um usuário real reportou que,
+ * mesmo depois de trocar só a verificação, "Dados oficiais" continuava
+ * indisponível no iPhone dele. A suspeita é que o mesmo tipo de bug também
+ * afeta `importKey`/`exportKey` para Ed25519 no WebKit, não só `verify` — ou
+ * seja, qualquer uso do Web Crypto para essa curva é suspeito. Por isso a
+ * chave pública nunca mais passa pelo Web Crypto: decodificada aqui como
+ * bytes brutos, direto do JWK, e usada assim por `@noble/curves` de ponta a
+ * ponta.
  */
-export function getTseVerificationKey(env: TseEnvKey): { kid: string; keyPromise: Promise<CryptoKey> } {
+function base64UrlToBytes(b64url: string): Uint8Array {
+  const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+/** Devolve o `kid` e os bytes brutos da chave pública de verificação do ambiente informado. */
+export function getTseVerificationKey(env: TseEnvKey): { kid: string; rawPublicKey: Uint8Array } {
   const config = TSE_JWS_KEYS[env];
-  let keyPromise = importedKeyCache.get(env);
-  if (!keyPromise) {
-    keyPromise = crypto.subtle.importKey('jwk', config.jwk, { name: 'Ed25519' }, true, ['verify']);
-    importedKeyCache.set(env, keyPromise);
-  }
-  return { kid: config.kid, keyPromise };
+  return { kid: config.kid, rawPublicKey: base64UrlToBytes(config.jwk.x) };
 }

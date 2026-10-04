@@ -44,20 +44,26 @@
  * chamador deve tratar como "dados indisponíveis", nunca exibir como oficial.
  *
  * EdDSA (Ed25519) — único algoritmo que o TSE usa de verdade — é verificado
- * com `@noble/curves` (implementação em JS puro, auditada), não com
- * `crypto.subtle.verify`: reportado por um usuário real em 04/10/2026 que o
- * modo "Dados oficiais" nunca carregava no iPhone (iOS 26.6.1, Chrome e
- * Firefox — ambos rodam sobre o WebKit do Safari no iOS, então o motor é o
- * mesmo), mesmo com o mesmo app funcionando normalmente no desktop. Suporte a
- * Ed25519 no Web Crypto do Safari só chegou na versão 17 (set/2023), e há bug
- * documentado do WebKit na implementação de Ed25519 (webkit.org/b/262499) —
- * ou seja, mesmo num iOS atual, `crypto.subtle.verify` para Ed25519 não é
- * confiável. A chave pública continua importada via Web Crypto (só a
- * exportação dos bytes brutos, `exportKey('raw', ...)`, não a verificação de
- * assinatura em si — operação bem mais simples, sem o mesmo risco) para não
- * duplicar a lógica de `tseKeys.ts`. Os demais algoritmos (RS256 etc. —
- * nunca usados pelo TSE, mantidos só pela genericidade do verificador)
- * continuam em `crypto.subtle.verify`.
+ * com `@noble/curves` (implementação em JS puro, auditada), nunca com o Web
+ * Crypto: reportado por um usuário real em 04/10/2026 que o modo "Dados
+ * oficiais" nunca carregava no iPhone (iOS 26.6.1, Chrome e Firefox — ambos
+ * rodam sobre o WebKit do Safari no iOS, então o motor é o mesmo), mesmo com
+ * o mesmo app funcionando normalmente no desktop. Suporte a Ed25519 no Web
+ * Crypto do Safari só chegou na versão 17 (set/2023), e há bug documentado do
+ * WebKit na implementação de Ed25519 (webkit.org/b/262499) — ou seja, mesmo
+ * num iOS atual, `crypto.subtle` para essa curva não é confiável.
+ *
+ * Uma primeira correção trocou só `crypto.subtle.verify` pelo `@noble/curves`,
+ * mas manteve `crypto.subtle.exportKey('raw', ...)` para obter os bytes da
+ * chave pública — e o problema persistiu no mesmo iPhone. Suspeita: o bug do
+ * WebKit provavelmente afeta a curva Ed25519 como um todo no Web Crypto, não
+ * só a operação de verificar. Por isso a chave pública nunca mais passa pelo
+ * Web Crypto (nem `importKey`, nem `exportKey`): `tseKeys.ts` decodifica os
+ * bytes brutos direto do campo `x` do JWK (base64url), e `verifyJws` recebe
+ * esses bytes prontos — Ed25519 fica 100% em `@noble/curves`, de ponta a
+ * ponta, sem nenhuma dependência do navegador. Os demais algoritmos (RS256
+ * etc. — nunca usados pelo TSE, mantidos só pela genericidade do
+ * verificador) continuam em `crypto.subtle.verify`, via `CryptoKey`.
  */
 
 import { ed25519 } from '@noble/curves/ed25519.js';
@@ -116,10 +122,14 @@ export interface VerifyJwsOptions {
  * uma chave pública já importada. Lança `JwsVerificationError` para qualquer
  * formato inválido, algoritmo/kid não esperado, ou assinatura que não confira
  * — nunca retorna um payload não verificado.
+ *
+ * `publicKey` é `Uint8Array` (bytes brutos) para EdDSA — ver nota no topo do
+ * arquivo sobre por que essa curva nunca passa pelo Web Crypto — ou
+ * `CryptoKey` para os demais algoritmos (RS256 etc.).
  */
 export async function verifyJws(
   compact: string,
-  publicKey: CryptoKey,
+  publicKey: CryptoKey | Uint8Array,
   options: VerifyJwsOptions = {},
 ): Promise<DecodedJws> {
   const parts = compact.split('.');
@@ -152,19 +162,22 @@ export async function verifyJws(
 
   let valid: boolean;
   if (algSpec.name === 'Ed25519') {
-    // Ver nota no topo do arquivo: `crypto.subtle.verify` para Ed25519 não é
-    // confiável em todo navegador (bug conhecido do WebKit/iOS), então a
-    // verificação em si usa `@noble/curves` (JS puro, auditado). Só a
-    // exportação dos bytes brutos da chave pública passa pelo Web Crypto —
-    // uma operação de formato, não uma computação criptográfica, sem o mesmo
-    // risco de implementação.
-    const rawPublicKey = new Uint8Array(await crypto.subtle.exportKey('raw', publicKey));
+    // Ver nota no topo do arquivo: Ed25519 nunca passa pelo Web Crypto (nem
+    // import, nem export, nem verify) — o bug do WebKit é suspeito de afetar
+    // a curva inteira, não só a verificação. `publicKey` já chega como bytes
+    // brutos (ver `tseKeys.ts`).
+    if (!(publicKey instanceof Uint8Array)) {
+      throw new JwsVerificationError('Chave pública para EdDSA precisa ser bytes brutos (Uint8Array)');
+    }
     try {
-      valid = ed25519.verify(signature, signingInput, rawPublicKey);
+      valid = ed25519.verify(signature, signingInput, publicKey);
     } catch {
       valid = false;
     }
   } else {
+    if (publicKey instanceof Uint8Array) {
+      throw new JwsVerificationError(`Chave pública para ${alg} precisa ser uma CryptoKey`);
+    }
     const verifyAlgorithm: AlgorithmIdentifier | RsaPssParams | EcdsaParams =
       algSpec.name === 'RSA-PSS'
         ? { name: 'RSA-PSS', saltLength: 32 }
