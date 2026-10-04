@@ -2,6 +2,8 @@ import { OFFICES } from '../data/domain';
 import type { OfficeKey, PageKey, Turn } from '../data/types';
 import type { AppContext } from '../state/appContext';
 import { timeAgoLabel } from '../state/appContext';
+import type { ParsedRoute } from '../state/router';
+import { applyRoute, pathForRoute, routeForState, toHref } from '../state/router';
 import { render } from './app';
 
 export function setupEvents(app: AppContext, root: HTMLElement): void {
@@ -69,6 +71,29 @@ export function setupEvents(app: AppContext, root: HTMLElement): void {
     }
   }
 
+  /**
+   * Reflete o estado atual (página/UF) na URL, dando um novo passo de
+   * histórico (pra "voltar" do navegador funcionar) — nunca durante um
+   * "popstate" (ver abaixo), senão cada clique em "voltar" empurraria uma
+   * entrada nova, prendendo o usuário no mesmo lugar. O objeto salvo junto
+   * (não só a URL em si) é o que `popstate` lê de volta — não reanalisa a
+   * URL, porque pushState/replaceState já guardam a rota certinha.
+   */
+  function syncUrl(): void {
+    const route = routeForState(app.state);
+    const href = toHref(pathForRoute(route));
+    if (window.location.pathname !== href) {
+      history.pushState(route, '', href);
+    }
+  }
+
+  window.addEventListener('popstate', (e) => {
+    const route = e.state as ParsedRoute | null;
+    if (!route) return;
+    applyRoute(app.state, route);
+    app.persist();
+  });
+
   document.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
     // Fecha o painel do seletor de estado ao clicar fora dele — o próprio
@@ -90,6 +115,7 @@ export function setupEvents(app: AppContext, root: HTMLElement): void {
       case 'set-uf':
         app.state.uf = el.getAttribute('data-value')!;
         app.state.ufPickerOpen = false;
+        syncUrl();
         app.persist();
         return;
       case 'go': {
@@ -102,6 +128,7 @@ export function setupEvents(app: AppContext, root: HTMLElement): void {
         const gotoTurn = el.getAttribute('data-turn');
         if (gotoUf) app.state.uf = gotoUf;
         if (gotoTurn) app.state.turn = Number(gotoTurn) as Turn;
+        syncUrl();
         app.persist();
         return;
       }
@@ -120,6 +147,7 @@ export function setupEvents(app: AppContext, root: HTMLElement): void {
         } else {
           app.state.uf = value;
         }
+        syncUrl();
         app.persist();
         return;
       }
