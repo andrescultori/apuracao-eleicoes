@@ -476,6 +476,11 @@ select.ui,
   font-weight: 600;
   color: var(--text-2);
 }
+.card .hint {
+  font-size: 11.5px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
 .progress-track {
   height: 5px;
   border-radius: 99px;
