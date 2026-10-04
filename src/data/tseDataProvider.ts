@@ -369,9 +369,8 @@ export function createTseDataProvider(
   ): Promise<{ notFound: true } | { notFound: false; payload: unknown }> {
     const res = await queue.fetchText(url);
     if (res.notFound || res.body === null) return { notFound: true };
-    const { kid, keyPromise } = getTseVerificationKey(env);
-    const key = await keyPromise;
-    const decoded = await verifyJws(res.body, key, { allowedAlgs: ['EdDSA'], expectedKid: kid });
+    const { kid, rawPublicKey } = getTseVerificationKey(env);
+    const decoded = await verifyJws(res.body, rawPublicKey, { allowedAlgs: ['EdDSA'], expectedKid: kid });
     return { notFound: false, payload: decoded.payload };
   }
 

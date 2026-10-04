@@ -30,41 +30,43 @@ const accompanimentJws = findFixture('br-e021270-ab.jws');
 
 describe.skipIf(catalogJws === null)('catálogo EA11 real (real/ele-c.jws)', () => {
   it('assinatura confere com a chave de simulado', async () => {
-    const { kid, keyPromise } = getTseVerificationKey('simulado');
-    const key = await keyPromise;
+    const { kid, rawPublicKey } = getTseVerificationKey('simulado');
     await expect(
-      verifyJws(catalogJws as string, key, { allowedAlgs: ['EdDSA'], expectedKid: kid }),
+      verifyJws(catalogJws as string, rawPublicKey, { allowedAlgs: ['EdDSA'], expectedKid: kid }),
     ).resolves.toBeDefined();
   });
 
   it('assinatura NÃO confere com a chave oficial (ambiente diferente)', async () => {
-    const { kid, keyPromise } = getTseVerificationKey('oficial');
-    const key = await keyPromise;
-    await expect(verifyJws(catalogJws as string, key, { allowedAlgs: ['EdDSA'], expectedKid: kid })).rejects.toThrow();
+    const { kid, rawPublicKey } = getTseVerificationKey('oficial');
+    await expect(
+      verifyJws(catalogJws as string, rawPublicKey, { allowedAlgs: ['EdDSA'], expectedKid: kid }),
+    ).rejects.toThrow();
   });
 });
 
 describe.skipIf(resultJws === null)('resultado EA20 real (real/br-c0001-e021270-u.jws)', () => {
   it('assinatura confere com a chave de simulado', async () => {
-    const { kid, keyPromise } = getTseVerificationKey('simulado');
-    const key = await keyPromise;
+    const { kid, rawPublicKey } = getTseVerificationKey('simulado');
     await expect(
-      verifyJws(resultJws as string, key, { allowedAlgs: ['EdDSA'], expectedKid: kid }),
+      verifyJws(resultJws as string, rawPublicKey, { allowedAlgs: ['EdDSA'], expectedKid: kid }),
     ).resolves.toBeDefined();
   });
 
   it('assinatura NÃO confere com a chave oficial (ambiente diferente)', async () => {
-    const { kid, keyPromise } = getTseVerificationKey('oficial');
-    const key = await keyPromise;
-    await expect(verifyJws(resultJws as string, key, { allowedAlgs: ['EdDSA'], expectedKid: kid })).rejects.toThrow();
+    const { kid, rawPublicKey } = getTseVerificationKey('oficial');
+    await expect(
+      verifyJws(resultJws as string, rawPublicKey, { allowedAlgs: ['EdDSA'], expectedKid: kid }),
+    ).rejects.toThrow();
   });
 });
 
 describe.skipIf(accompanimentJws === null)('acompanhamento EA14 real (real/br-e021270-ab.jws)', () => {
   it('assinatura confere com a chave de simulado e o payload decodifica com as seções esperadas', async () => {
-    const { kid, keyPromise } = getTseVerificationKey('simulado');
-    const key = await keyPromise;
-    const decoded = await verifyJws(accompanimentJws as string, key, { allowedAlgs: ['EdDSA'], expectedKid: kid });
+    const { kid, rawPublicKey } = getTseVerificationKey('simulado');
+    const decoded = await verifyJws(accompanimentJws as string, rawPublicKey, {
+      allowedAlgs: ['EdDSA'],
+      expectedKid: kid,
+    });
     const payload = parseEa14Payload(decoded.payload);
     expect(payload.abr).toHaveLength(29);
     const brasil = findAccompanimentSections(payload, null);
@@ -73,10 +75,9 @@ describe.skipIf(accompanimentJws === null)('acompanhamento EA14 real (real/br-e0
   });
 
   it('assinatura NÃO confere com a chave oficial (ambiente diferente)', async () => {
-    const { kid, keyPromise } = getTseVerificationKey('oficial');
-    const key = await keyPromise;
+    const { kid, rawPublicKey } = getTseVerificationKey('oficial');
     await expect(
-      verifyJws(accompanimentJws as string, key, { allowedAlgs: ['EdDSA'], expectedKid: kid }),
+      verifyJws(accompanimentJws as string, rawPublicKey, { allowedAlgs: ['EdDSA'], expectedKid: kid }),
     ).rejects.toThrow();
   });
 });
