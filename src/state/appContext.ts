@@ -114,22 +114,23 @@ export class AppContext {
    * é registrado sempre que uma busca de verdade chega com dados (nunca a
    * cada render — `fetchedAt` muda só quando o provedor efetivamente buscou
    * de novo, ver `recordHistorySnapshot`). Persistido (ver `loadResultsHistory`/
-   * `persistResultsHistory` em store.ts): sem isso, recarregar a página (ou
-   * navegar — cada navegação recria o `AppContext`) apagava tudo, e com o
-   * intervalo mínimo de 5 min entre pontos, o gráfico quase nunca acumulava
-   * os 2 pontos mínimos antes de alguém recarregar — ficava sempre preso em
-   * "ainda não há pontos suficientes".
+   * `persistResultsHistory` em store.ts), pra sobreviver a um recarregamento
+   * de página (navegar dentro do app não recria o `AppContext` — só um F5 ou
+   * abrir de novo numa aba nova).
    */
   private resultsHistory: Map<string, ResultsHistoryPoint[]> = new Map(Object.entries(loadResultsHistory()));
   // Um ponto a cada busca de verdade (a cada tick da autoatualização, que
   // pode ser configurada pra até 10s) deixava o eixo X do gráfico de
   // evolução cobrindo só alguns minutos — perto demais pra enxergar
   // variação real (percentual de votos não muda muito de minuto a minuto).
-  // Espaçar os pontos no mínimo esse intervalo faz o eixo cobrir um período
-  // bem maior (horas, não minutos) à medida que a sessão continua, qualquer
-  // que seja o intervalo de autoatualização escolhido.
-  private static readonly MIN_HISTORY_INTERVAL_MS = 5 * 60 * 1000;
-  private static readonly MAX_HISTORY_POINTS = 120;
+  // Espaçar os pontos nesse intervalo mínimo faz o eixo cobrir um período
+  // maior à medida que a sessão continua. Um valor usado antes (5 min) era
+  // tecnicamente melhor pra isso, mas na prática deixava o gráfico preso em
+  // "ainda não há pontos suficientes" por tempo longo demais pra alguém
+  // esperar — 1 min é um meio-termo: o gráfico aparece bem mais rápido, e
+  // ainda assim cresce bem além de "minuto a minuto" numa sessão longa.
+  private static readonly MIN_HISTORY_INTERVAL_MS = 60 * 1000;
+  private static readonly MAX_HISTORY_POINTS = 180;
 
   constructor() {
     loadPersisted(this.state);

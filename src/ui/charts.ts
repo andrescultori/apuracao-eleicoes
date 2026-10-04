@@ -123,10 +123,16 @@ export function EvolutionChart(app: AppContext, office: OfficeKey, turn: Turn, u
   if (app.state.dataMode === 'tse') {
     const hist = app.getResultsHistory(office, uf, turn);
     if (hist.length < 2) {
+      // Diz desde quando (se já há 1 ponto) em vez de só "ainda não" — sem
+      // isso, parece quebrado em vez de só estar esperando o próximo ponto
+      // (no mínimo 1 min depois do primeiro, ver `recordHistorySnapshot`).
+      const first = hist[0];
+      const message = first
+        ? `Acompanhando esta corrida desde ${lastUpdateWallClock(first.fetchedAt)} — ainda só há 1 ponto no histórico. Volte em alguns minutos.`
+        : 'Começando a acompanhar esta corrida agora — volte em alguns minutos para ver a evolução.';
       return (
         '<div class="chart-card"><div class="section-head" style="margin-bottom:6px;"><h2>Evolução da apuração</h2></div>' +
-        '<p class="muted" style="font-size:12.5px;">Ainda não há pontos suficientes no histórico desta corrida — ' +
-        'volte depois de mais uma atualização.</p></div>'
+        `<p class="muted" style="font-size:12.5px;">${message}</p></div>`
       );
     }
     const latest = hist[hist.length - 1]!;
