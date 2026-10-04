@@ -176,6 +176,12 @@ a {
   gap: 8px;
   flex: none;
 }
+.status-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
 .status-pill {
   display: flex;
   align-items: center;
@@ -186,6 +192,11 @@ a {
   border-radius: 999px;
   background: var(--surface-2);
   white-space: nowrap;
+}
+.status-clock {
+  font-size: 11px;
+  color: var(--text-3);
+  padding-right: 10px;
 }
 .dot {
   width: 7px;
@@ -443,7 +454,7 @@ select.ui,
 /* summary cards */
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
 @media (max-width: 760px) {

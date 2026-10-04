@@ -199,6 +199,13 @@ export function timeAgoLabel(ms: number): string {
   return `Atualizado há ${m} min`;
 }
 
+/** Horário (HH:MM) da última atualização real — `app.state.lastUpdate` é atualizado em ambos os modos (mock e TSE). */
+export function lastUpdateWallClock(ms: number): string {
+  const d = new Date(ms);
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
+/** Horário (HH:MM) do relógio simulado — só faz sentido no modo demonstração (ver `aboutPage.ts`). */
 export function lastUpdateClock(app: AppContext): string {
   const h = app.sim.history[app.sim.history.length - 1];
   return h ? h.label : '19:00';
