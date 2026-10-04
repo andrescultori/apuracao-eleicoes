@@ -95,11 +95,14 @@ describe('parseEa14Payload / findAccompanimentSections', () => {
     expect(payload.abr.map((a) => a.cdabr).sort()).toEqual(['br', 'pi', 'sp']);
   });
 
-  it('encontra a entrada "br" (agregado nacional) quando uf é null', () => {
+  it('soma as seções de todas as UFs (não confia na entrada "br") quando uf é null', () => {
     const payload = parseEa14Payload(ea14Sample);
     const sections = findAccompanimentSections(payload, null);
-    // valores reais do arquivo: s.ts="528951", s.st="528951" (100% totalizado).
-    expect(sections).toEqual({ total: 528951, counted: 528951, percent: 100 });
+    // Soma de pi (ts=st=11803) + sp (ts=st=106580) — a entrada "br" do
+    // arquivo (ts=st=528951, o total real de todas as 27 UFs) é ignorada de
+    // propósito: ver nota em `findAccompanimentSections` sobre a divergência
+    // confirmada em produção entre o percentual de "br" e o oficial.
+    expect(sections).toEqual({ total: 118383, counted: 118383, percent: 100 });
   });
 
   it('encontra a entrada de uma UF específica, casando cdabr em minúsculo', () => {
@@ -108,12 +111,15 @@ describe('parseEa14Payload / findAccompanimentSections', () => {
     expect(sections).toEqual({ total: 106580, counted: 106580, percent: 100 });
   });
 
-  it('faz o parsing de pstn com vírgula decimal (ex.: "41,57"), não só valores inteiros', () => {
+  it('faz o parsing de pstn com vírgula decimal (ex.: "41,57"), não só valores inteiros — escopo de UF', () => {
+    // O escopo nacional (uf === null) não lê mais "pstn" (ver nota acima);
+    // esse campo só é usado para uma UF específica, então o teste de
+    // regressão da vírgula decimal mutou para o escopo de UF.
     const raw = JSON.parse(JSON.stringify(ea14Sample)) as { abr: Array<Record<string, unknown>> };
-    const br = raw.abr.find((a) => a['cdabr'] === 'br')!;
-    (br['s'] as Record<string, unknown>)['pstn'] = '41,57';
+    const sp = raw.abr.find((a) => a['cdabr'] === 'sp')!;
+    (sp['s'] as Record<string, unknown>)['pstn'] = '41,57';
     const payload = parseEa14Payload(raw);
-    const sections = findAccompanimentSections(payload, null);
+    const sections = findAccompanimentSections(payload, 'SP');
     expect(sections?.percent).toBeCloseTo(41.57);
   });
 
@@ -141,8 +147,9 @@ describe('parseEa14Payload / findAccompanimentSections', () => {
     const payload = parseEa14Payload(raw);
     const parsedBr = payload.abr.find((a) => a.cdabr === 'br');
     expect(parsedBr?.e).toBeUndefined();
-    // seções continuam funcionando normalmente, mesmo com "e" malformado.
-    expect(findAccompanimentSections(payload, null)).toEqual({ total: 528951, counted: 528951, percent: 100 });
+    // seções continuam funcionando normalmente, mesmo com "e" malformado
+    // (nem é lido: o escopo nacional soma as UFs, não a entrada "br").
+    expect(findAccompanimentSections(payload, null)).toEqual({ total: 118383, counted: 118383, percent: 100 });
   });
 
   it('não lança quando "e" está totalmente ausente', () => {
@@ -292,9 +299,11 @@ describe('createTseDataProvider — verificação de assinatura ligada de ponta 
       expect(r.status).toBe('ready');
       expect(r.data?.candidates).toHaveLength(2);
       expect(r.data?.candidates[0]?.name).toBe('CANDIDATO 9987');
-      // Seções totalizadas vêm do acompanhamento (item "br", ver fixture real).
-      expect(r.data?.sectionsTotal).toBe(528951);
-      expect(r.data?.sectionsCounted).toBe(528951);
+      // Seções totalizadas vêm do acompanhamento, somadas pelas entradas de
+      // UF (pi + sp na fixture real) — não da entrada "br" (ver nota em
+      // `findAccompanimentSections`).
+      expect(r.data?.sectionsTotal).toBe(118383);
+      expect(r.data?.sectionsCounted).toBe(118383);
       // Eleitorado (item "br", ver fixture real) também vem do acompanhamento.
       expect(r.data?.electorateTotal).toBe(163079139);
       expect(r.data?.electorateAccountedFor).toBe(163078872);

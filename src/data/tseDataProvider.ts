@@ -245,21 +245,39 @@ export function parseEa14Payload(raw: unknown): Ea14Payload {
 }
 
 /**
- * Localiza, em `abr[]`, a entrada certa para o escopo pedido — a agregada
- * nacional ("br") quando `uf` é `null`, ou a da UF (`cdabr` casado em
- * minúsculo) quando não é. Devolve `null` quando essa entrada específica não
- * está no arquivo (nunca inventa um número).
+ * Localiza, em `abr[]`, a entrada certa para o escopo pedido — a da UF
+ * (`cdabr` casado em minúsculo) quando `uf` não é `null`. Devolve `null`
+ * quando essa entrada específica não está no arquivo (nunca inventa um
+ * número).
+ *
+ * Para `uf === null` (visão Brasil, só existe para Presidente), NÃO usa a
+ * entrada agregada "br" do próprio arquivo — confirmado (relato real em
+ * produção, pleito de 04/10/2026) que o percentual de "br" diverge bastante
+ * do site oficial (ex.: 64% no app vs 47% oficial), enquanto o percentual de
+ * cada UF individualmente bate. Isso é consistente com "br" sendo uma MÉDIA
+ * (não ponderada pelo tamanho de cada UF) dos percentuais estaduais — estados
+ * pequenos terminando a totalização mais rápido pesariam igual a SP/MG,
+ * inflando a média bem acima do percentual nacional real. Em vez de confiar
+ * nisso, somamos `ts`/`st` de todas as entradas `tpabr==='uf'` (as mesmas já
+ * confirmadas corretas individualmente) e calculamos o percentual nacional
+ * ponderado nós mesmos — é a soma bruta de seções, não dá pra estar errada
+ * da mesma forma que uma média de percentuais.
  */
 export function findAccompanimentSections(payload: Ea14Payload, uf: string | null): AccompanimentSections | null {
-  const item = uf
-    ? payload.abr.find((a) => a.tpabr === 'uf' && a.cdabr === uf.toLowerCase())
-    : payload.abr.find((a) => a.tpabr === 'br');
-  if (!item) return null;
-  // `pstn` já é o percentual calculado pelo próprio TSE — nunca recalculado
-  // aqui a partir de ts/st (ver nota em `ElectionResults.sectionsPercent`).
-  // É decimal com vírgula (ex.: "41,57"), por isso usa `parsePtDecimal`
-  // como os demais campos decimais do TSE — `Number()` direto dá NaN.
-  return { total: Number(item.s.ts), counted: Number(item.s.st), percent: parsePtDecimal(item.s.pstn) };
+  if (uf) {
+    const item = payload.abr.find((a) => a.tpabr === 'uf' && a.cdabr === uf.toLowerCase());
+    if (!item) return null;
+    // `pstn` já é o percentual calculado pelo próprio TSE — nunca recalculado
+    // aqui a partir de ts/st (ver nota em `ElectionResults.sectionsPercent`).
+    // É decimal com vírgula (ex.: "41,57"), por isso usa `parsePtDecimal`
+    // como os demais campos decimais do TSE — `Number()` direto dá NaN.
+    return { total: Number(item.s.ts), counted: Number(item.s.st), percent: parsePtDecimal(item.s.pstn) };
+  }
+  const ufItems = payload.abr.filter((a) => a.tpabr === 'uf');
+  if (ufItems.length === 0) return null;
+  const total = ufItems.reduce((sum, a) => sum + Number(a.s.ts), 0);
+  const counted = ufItems.reduce((sum, a) => sum + Number(a.s.st), 0);
+  return { total, counted, percent: total > 0 ? (counted / total) * 100 : 0 };
 }
 
 export interface Electorado {
