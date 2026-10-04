@@ -137,8 +137,20 @@ export function setupEvents(app: AppContext, root: HTMLElement): void {
   document.addEventListener('change', (e) => {
     const target = e.target as HTMLElement;
     if (target.id === 'uf-select') {
-      app.state.uf = (target as HTMLSelectElement).value;
-      app.persist();
+      const value = (target as HTMLSelectElement).value;
+      // Reportado em iOS (WebKit): re-renderizar a página inteira (troca de
+      // innerHTML) imediatamente dentro do handler de "change" de um <select>
+      // pode destruir o elemento enquanto o seletor nativo ainda está
+      // fechando — o picker simplesmente some, sem nunca aplicar a escolha.
+      // `blur()` força o fechamento antes de qualquer mudança no DOM, e
+      // adiar a re-renderização para o próximo tick dá tempo do navegador
+      // terminar de desmontar o picker nativo por conta própria.
+      target.blur();
+      setTimeout(() => {
+        app.state.uf = value;
+        app.persist();
+      }, 0);
+      return;
     }
     if (target.getAttribute && target.getAttribute('data-action') === 'set-interval') {
       app.state.refreshInterval = Number((target as HTMLSelectElement).value);
