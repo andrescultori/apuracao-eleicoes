@@ -472,7 +472,15 @@ export function createTseDataProvider(
     };
     if (!existing) accompanimentCache.set(cdEleicao, state);
 
-    if (state.payload || state.fetching) return state;
+    // Diferente do catálogo (EA11, estático pro ciclo inteiro), o
+    // acompanhamento muda o dia inteiro — é literalmente o progresso da
+    // totalização. Um `state.payload ||` aqui (como o catálogo tem) travaria
+    // "seções totalizadas" no valor da primeira busca pra sempre, divergindo
+    // cada vez mais do site oficial conforme a apuração avança (confirmado:
+    // era exatamente esse o bug reportado, mesmo depois da fórmula do
+    // percentual estar correta). Resultado (EA20) já segue este padrão —
+    // nunca para de tentar, só respeita o cooldown entre tentativas.
+    if (state.fetching) return state;
     if (state.lastAttemptAt !== null && Date.now() - state.lastAttemptAt < RETRY_COOLDOWN_MS) return state;
 
     const url = TSE_CONFIG.buildAccompanimentPath(env, catalog, { uf: null, ciclo, cdEleicao });
