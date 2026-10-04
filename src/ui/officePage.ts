@@ -7,6 +7,7 @@ import { CandidateTable } from './candidateTable';
 import { EvolutionChart, VoteChart } from './charts';
 import { FavoritesSection } from './favorites';
 import { FilterBar } from './filterBar';
+import { SectionsByStateCard } from './sectionsByState';
 import { SummaryCards, UpdateRow } from './summaryCards';
 
 const TSE_STATUS_EMPTY_STATE_MESSAGE: Record<Exclude<ProviderStatus, 'ready'>, string> = {
@@ -75,7 +76,12 @@ export function OfficePage(app: AppContext, office: OfficeKey): string {
     CandidateTable(app, office, app.state.turn, uf, results, prevById) +
     '</div>' +
     EvolutionChart(app, office, app.state.turn, uf) +
-    (supportsMap(office) ? BrazilMap(app, office, app.state.turn) : '') +
+    (supportsMap(office)
+      ? '<div class="map-row">' +
+        SectionsByStateCard(app, office, app.state.turn) +
+        BrazilMap(app, office, app.state.turn) +
+        '</div>'
+      : '') +
     '</div>'
   );
 }
