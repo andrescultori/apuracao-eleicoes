@@ -108,6 +108,15 @@ describe('parseEa14Payload / findAccompanimentSections', () => {
     expect(sections).toEqual({ total: 106580, counted: 106580, percent: 100 });
   });
 
+  it('faz o parsing de pstn com vírgula decimal (ex.: "41,57"), não só valores inteiros', () => {
+    const raw = JSON.parse(JSON.stringify(ea14Sample)) as { abr: Array<Record<string, unknown>> };
+    const br = raw.abr.find((a) => a['cdabr'] === 'br')!;
+    (br['s'] as Record<string, unknown>)['pstn'] = '41,57';
+    const payload = parseEa14Payload(raw);
+    const sections = findAccompanimentSections(payload, null);
+    expect(sections?.percent).toBeCloseTo(41.57);
+  });
+
   it('devolve null quando a UF pedida não está no arquivo', () => {
     const payload = parseEa14Payload(ea14Sample);
     expect(findAccompanimentSections(payload, 'RJ')).toBeNull();

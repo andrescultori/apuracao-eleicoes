@@ -257,7 +257,9 @@ export function findAccompanimentSections(payload: Ea14Payload, uf: string | nul
   if (!item) return null;
   // `pstn` já é o percentual calculado pelo próprio TSE — nunca recalculado
   // aqui a partir de ts/st (ver nota em `ElectionResults.sectionsPercent`).
-  return { total: Number(item.s.ts), counted: Number(item.s.st), percent: Number(item.s.pstn) };
+  // É decimal com vírgula (ex.: "41,57"), por isso usa `parsePtDecimal`
+  // como os demais campos decimais do TSE — `Number()` direto dá NaN.
+  return { total: Number(item.s.ts), counted: Number(item.s.st), percent: parsePtDecimal(item.s.pstn) };
 }
 
 export interface Electorado {

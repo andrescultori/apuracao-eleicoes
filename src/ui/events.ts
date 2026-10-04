@@ -18,11 +18,27 @@ export function setupEvents(app: AppContext, root: HTMLElement): void {
 
   document.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
+    // Fecha o painel do seletor de estado ao clicar fora dele — o próprio
+    // clique em "set-uf"/"toggle-uf-picker" fecha pelo switch abaixo, então
+    // isso só cobre cliques em outro lugar da página.
+    if (app.state.ufPickerOpen && !target.closest('.uf-picker')) {
+      app.state.ufPickerOpen = false;
+      app.update();
+    }
     const el = target.closest<HTMLElement>('[data-action]');
     if (!el) return;
     const action = el.getAttribute('data-action');
 
     switch (action) {
+      case 'toggle-uf-picker':
+        app.state.ufPickerOpen = !app.state.ufPickerOpen;
+        app.update();
+        return;
+      case 'set-uf':
+        app.state.uf = el.getAttribute('data-value')!;
+        app.state.ufPickerOpen = false;
+        app.persist();
+        return;
       case 'go': {
         app.state.page = el.getAttribute('data-page') as PageKey;
         app.state.search = '';
@@ -123,6 +139,10 @@ export function setupEvents(app: AppContext, root: HTMLElement): void {
       app.state.settingsOpen = false;
       app.update();
     }
+    if (e.key === 'Escape' && app.state.ufPickerOpen) {
+      app.state.ufPickerOpen = false;
+      app.update();
+    }
   });
 
   document.addEventListener('input', (e) => {
@@ -136,21 +156,6 @@ export function setupEvents(app: AppContext, root: HTMLElement): void {
 
   document.addEventListener('change', (e) => {
     const target = e.target as HTMLElement;
-    if (target.id === 'uf-select') {
-      const value = (target as HTMLSelectElement).value;
-      // Re-renderizar a página inteira (troca de innerHTML) imediatamente
-      // dentro do handler de "change" de um <select> pode destruir o
-      // elemento antes do navegador terminar de fechar o seletor nativo.
-      // Adiar pro próximo tick dá esse tempo. (Uma tentativa anterior também
-      // chamava `blur()` aqui — removido: um usuário reportou o dropdown
-      // fechando sozinho ainda mais rápido depois disso, então parece ter
-      // piorado, não ajudado.)
-      setTimeout(() => {
-        app.state.uf = value;
-        app.persist();
-      }, 0);
-      return;
-    }
     if (target.getAttribute && target.getAttribute('data-action') === 'set-interval') {
       app.state.refreshInterval = Number((target as HTMLSelectElement).value);
       app.persist();
