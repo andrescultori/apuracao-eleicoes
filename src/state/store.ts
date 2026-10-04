@@ -28,6 +28,13 @@ export interface AppState {
    * não é persistido.
    */
   ufPickerOpen: boolean;
+  /**
+   * Página atual da tabela de candidatos (1-indexado) — cargos com muitos
+   * candidatos (Dep. Federal/Estadual) paginam de 30 em 30 (ver
+   * `candidateTable.ts`). Transitório como `settingsOpen`: não é persistido,
+   * e volta pra 1 sempre que o cargo/turno/UF/busca muda (ver `events.ts`).
+   */
+  candidatePage: number;
   lastUpdate: number;
   /** 'mock' (demonstração) | 'tse' (dados oficiais — ver TSE_CONFIG) */
   dataMode: DataMode;
@@ -67,6 +74,7 @@ export function createInitialState(): AppState {
     refreshInterval: 30_000,
     settingsOpen: false,
     ufPickerOpen: false,
+    candidatePage: 1,
     lastUpdate: Date.now(),
     dataMode: 'tse',
     tseEnv: 'oficial',

@@ -595,6 +595,13 @@ select.ui,
 .btn:hover {
   background: var(--surface-2);
 }
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn:disabled:hover {
+  background: var(--surface);
+}
 .btn.primary {
   background: var(--accent);
   border-color: var(--accent);
@@ -860,6 +867,15 @@ table.results tbody tr:hover {
   text-align: center;
   color: var(--text-2);
   font-size: 13.5px;
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
 }
 
 /* mobile cards for table */

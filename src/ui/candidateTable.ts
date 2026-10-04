@@ -21,6 +21,9 @@ export function renderDeltaPos(cur: CandidateResult, prev: CandidateResult | und
   return '<span class="delta flat">— </span>';
 }
 
+/** Cargos com dezenas/centenas de candidatos (Dep. Federal/Estadual) paginam; os demais nunca passam disso numa única página. */
+const PAGE_SIZE = 30;
+
 export function CandidateTable(
   app: AppContext,
   office: OfficeKey,
@@ -47,7 +50,11 @@ export function CandidateTable(
     return `<div class="table-card"><div class="empty-note">Nenhum candidato encontrado para "${esc(app.state.search)}".</div></div>`;
   }
 
-  const trs = rows
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const page = Math.min(Math.max(1, app.state.candidatePage), totalPages);
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const trs = pageRows
     .map((c) => {
       const prev = prevById[c.id];
       const fav = app.isFav(turn, office, uf, c.id);
@@ -57,8 +64,8 @@ export function CandidateTable(
         `<div class="pos-cell"><span class="num">${c.position}º</span>${renderDeltaPos(c, prev)}</div>` +
         '</td>' +
         '<td class="cand-cell" data-label="Candidato">' +
-        `<button class="star-btn ${fav ? 'active' : ''}" data-action="toggle-fav" data-office="${office}" data-uf="${uf ?? ''}" data-turn="${turn}" data-id="${c.id}" aria-label="${fav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}: ${esc(c.name)}" aria-pressed="${fav}">${fav ? '★' : '☆'}</button>` +
-        `<span class="cand-name">${esc(c.name)}</span>` +
+        `<button class="star-btn ${fav ? 'active' : ''}" data-action="toggle-fav" data-office="${office}" data-uf="${uf ?? ''}" data-turn="${turn}" data-id="${c.id}" aria-label="${fav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}: ${esc(c.ballotName)}" aria-pressed="${fav}">${fav ? '★' : '☆'}</button>` +
+        `<span class="cand-name" title="${esc(c.name)}">${esc(c.ballotName)}</span>` +
         (c.elected
           ? '<span class="elected-badge" title="Resultado matematicamente decidido mesmo com a apuração em andamento — não é uma proclamação oficial da Justiça Eleitoral.">Eleito matematicamente (não oficial)</span>'
           : '') +
@@ -72,6 +79,15 @@ export function CandidateTable(
     })
     .join('');
 
+  const pagination =
+    totalPages > 1
+      ? '<div class="pagination">' +
+        `<button type="button" class="btn" data-action="set-candidate-page" data-value="${page - 1}" ${page <= 1 ? 'disabled' : ''}>‹ Anterior</button>` +
+        `<span class="muted">Página ${page} de ${totalPages} · ${rows.length} candidatos</span>` +
+        `<button type="button" class="btn" data-action="set-candidate-page" data-value="${page + 1}" ${page >= totalPages ? 'disabled' : ''}>Próxima ›</button>` +
+        '</div>'
+      : '';
+
   return (
     '<div class="table-card"><div class="table-scroll">' +
     '<table class="results">' +
@@ -81,6 +97,8 @@ export function CandidateTable(
     '</tr></thead>' +
     `<tbody>${trs}</tbody>` +
     '</table>' +
-    '</div></div>'
+    '</div>' +
+    pagination +
+    '</div>'
   );
 }

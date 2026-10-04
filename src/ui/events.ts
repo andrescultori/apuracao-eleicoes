@@ -115,12 +115,14 @@ export function setupEvents(app: AppContext, root: HTMLElement): void {
       case 'set-uf':
         app.state.uf = el.getAttribute('data-value')!;
         app.state.ufPickerOpen = false;
+        app.state.candidatePage = 1;
         syncUrl();
         app.persist();
         return;
       case 'go': {
         app.state.page = el.getAttribute('data-page') as PageKey;
         app.state.search = '';
+        app.state.candidatePage = 1;
         // Chips da barra de favoritos levam direto à corrida do candidato,
         // ajustando turno/UF — os demais botões "go" (nav, cards) não têm
         // esses atributos, então nada muda para eles.
@@ -134,6 +136,7 @@ export function setupEvents(app: AppContext, root: HTMLElement): void {
       }
       case 'set-turn':
         app.state.turn = Number(el.getAttribute('data-value')) as Turn;
+        app.state.candidatePage = 1;
         app.persist();
         return;
       case 'set-map-uf': {
@@ -147,10 +150,15 @@ export function setupEvents(app: AppContext, root: HTMLElement): void {
         } else {
           app.state.uf = value;
         }
+        app.state.candidatePage = 1;
         syncUrl();
         app.persist();
         return;
       }
+      case 'set-candidate-page':
+        app.state.candidatePage = Number(el.getAttribute('data-value'));
+        app.update();
+        return;
       case 'toggle-fav':
       case 'unfav': {
         const turn = Number(el.getAttribute('data-turn')) as Turn;
@@ -236,6 +244,7 @@ export function setupEvents(app: AppContext, root: HTMLElement): void {
     if (target.id === 'cand-search') {
       app.state.search = (target as HTMLInputElement).value;
       app.state._focusSearch = true;
+      app.state.candidatePage = 1;
       app.update();
     }
   });
