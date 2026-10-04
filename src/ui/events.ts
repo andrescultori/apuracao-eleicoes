@@ -6,7 +6,60 @@ import { render } from './app';
 
 export function setupEvents(app: AppContext, root: HTMLElement): void {
   const rerender = (): void => render(app, root);
-  app.onChange = rerender;
+
+  // `render()` troca `root.innerHTML` inteiro, inclusive o menu superior —
+  // até numa renderização disparada em segundo plano (autoatualização,
+  // resposta do TSE chegando). Se isso acontecer entre o toque e o soltar do
+  // dedo num link do menu, o elemento sob o dedo é removido do documento no
+  // meio do gesto, e o navegador nunca dispara o "click" (nenhum erro, só
+  // nada acontece) — o relato de "às vezes clico e nada acontece" bate com
+  // essa janela de corrida. Enquanto um ponteiro está pressionado, uma
+  // renderização que não veio do próprio clique fica pendente.
+  //
+  // O "flush" dessa renderização pendente roda no listener de "click"
+  // registrado mais abaixo (depois do switch de data-action, por ordem de
+  // registro) — não em "pointerup": testado ao vivo, um `setTimeout(fn, 0)`
+  // agendado dentro do handler de "pointerup" roda ANTES do "click" da mesma
+  // interação (não depois, como seria de esperar pela ordem dos eventos) —
+  // teria recriado o DOM antes do clique chegar, o mesmo bug que estamos
+  // corrigindo. Rodar o flush dentro do próprio "click" garante que a ação
+  // dele já foi processada contra o DOM correto. Um temporizador em
+  // "pointerup" serve só de rede de segurança, para gestos que nunca
+  // terminam em "click" (um arrastar, por exemplo) não deixarem o ponteiro
+  // "preso" para sempre.
+  let pointerActive = false;
+  let renderPending = false;
+  let safetyFlushTimer: ReturnType<typeof setTimeout> | null = null;
+  const rerenderDeferred = (): void => {
+    if (pointerActive) {
+      renderPending = true;
+      return;
+    }
+    rerender();
+  };
+  const flushPendingRender = (): void => {
+    if (safetyFlushTimer) {
+      clearTimeout(safetyFlushTimer);
+      safetyFlushTimer = null;
+    }
+    pointerActive = false;
+    if (renderPending) {
+      renderPending = false;
+      rerender();
+    }
+  };
+  document.addEventListener('pointerdown', () => {
+    if (safetyFlushTimer) {
+      clearTimeout(safetyFlushTimer);
+      safetyFlushTimer = null;
+    }
+    pointerActive = true;
+  });
+  document.addEventListener('pointerup', () => {
+    safetyFlushTimer = setTimeout(flushPendingRender, 200);
+  });
+  document.addEventListener('pointercancel', flushPendingRender);
+  app.onChange = rerenderDeferred;
 
   let autoTimer: ReturnType<typeof setInterval> | null = null;
   function resetAutoRefreshTimer(): void {
@@ -126,6 +179,11 @@ export function setupEvents(app: AppContext, root: HTMLElement): void {
         return;
     }
   });
+
+  // Registrado depois do listener acima (mesmo evento "click", mesmo
+  // alvo) — roda em seguida, por ordem de registro, já com a ação do
+  // clique processada. Ver nota em `flushPendingRender`.
+  document.addEventListener('click', flushPendingRender);
 
   document.addEventListener('keydown', (e) => {
     const target = e.target as HTMLElement;
