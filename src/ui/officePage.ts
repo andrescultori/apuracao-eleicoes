@@ -2,6 +2,7 @@ import { OFFICES } from '../data/domain';
 import { computeResults, getScopeSections } from '../data/mockDataProvider';
 import type { CandidateResult, OfficeKey, ProviderStatus } from '../data/types';
 import type { AppContext } from '../state/appContext';
+import { BrazilMap, supportsMap } from './brazilMap';
 import { CandidateTable } from './candidateTable';
 import { EvolutionChart, VoteChart } from './charts';
 import { FavoritesSection } from './favorites';
@@ -65,6 +66,7 @@ export function OfficePage(app: AppContext, office: OfficeKey): string {
   return (
     '<div class="stack">' +
     FilterBar(app, office) +
+    (supportsMap(office) ? BrazilMap(app, office, app.state.turn) : '') +
     SummaryCards(app, results, totalSections, countedSections) +
     UpdateRow(app) +
     FavoritesSection(app, office, app.state.turn, uf, results) +

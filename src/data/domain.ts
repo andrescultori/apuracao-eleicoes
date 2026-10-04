@@ -32,6 +32,45 @@ export const UFS: Uf[] = [
 
 export const UF_MAP: Record<string, Uf> = Object.fromEntries(UFS.map((u) => [u.sigla, u]));
 
+/**
+ * Posição (coluna, linha) de cada UF num cartograma de grade — um mapa do
+ * Brasil estilizado (como os "mapas de grade" usados por veículos de
+ * imprensa para eleições americanas), não uma silhueta geográfica real. Não
+ * há arquivo de fronteiras reais do Brasil disponível neste projeto (nenhuma
+ * fonte de dado geográfico foi usada); as posições abaixo são só uma
+ * aproximação de bom senso da posição relativa de cada UF (norte no topo,
+ * oeste à esquerda), ajustada à mão para não haver duas UFs na mesma célula.
+ */
+export const UF_GRID: Record<string, { col: number; row: number }> = {
+  AC: { col: 0, row: 3 },
+  AM: { col: 1, row: 2 },
+  RR: { col: 2, row: 0 },
+  AP: { col: 3, row: 1 },
+  PA: { col: 3, row: 2 },
+  RO: { col: 1, row: 3 },
+  TO: { col: 3, row: 3 },
+  MA: { col: 4, row: 2 },
+  MT: { col: 2, row: 4 },
+  PI: { col: 5, row: 3 },
+  CE: { col: 6, row: 2 },
+  RN: { col: 7, row: 2 },
+  PB: { col: 7, row: 3 },
+  PE: { col: 6, row: 3 },
+  AL: { col: 7, row: 4 },
+  SE: { col: 6, row: 4 },
+  BA: { col: 5, row: 4 },
+  GO: { col: 3, row: 5 },
+  DF: { col: 4, row: 4 },
+  MS: { col: 2, row: 6 },
+  MG: { col: 4, row: 5 },
+  ES: { col: 5, row: 5 },
+  RJ: { col: 5, row: 6 },
+  SP: { col: 4, row: 6 },
+  PR: { col: 3, row: 7 },
+  SC: { col: 4, row: 7 },
+  RS: { col: 3, row: 8 },
+};
+
 export const PARTIES = ['ABC', 'XYZ', 'DEF', 'GHI', 'JKL', 'MNO', 'PQR', 'STU', 'VWX', 'LMN'];
 
 export const PARTY_BASE: Record<string, number> = Object.fromEntries(PARTIES.map((p, i) => [p, (i + 1) * 10]));

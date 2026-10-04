@@ -5,6 +5,14 @@ export interface AppState {
   page: PageKey;
   turn: Turn;
   uf: string;
+  /**
+   * UF selecionada ao clicar no mapa do Brasil (ver `brazilMap.ts`), só para
+   * cargos de abrangência nacional (Presidente) — `null` = ver o Brasil
+   * inteiro. Independente de `uf` (que é a UF escolhida no seletor para
+   * cargos de abrangência estadual, como Governador) porque as duas coisas
+   * nunca se aplicam ao mesmo cargo ao mesmo tempo.
+   */
+  nationalUfFilter: string | null;
   search: string;
   favorites: string[];
   theme: ThemeMode;
@@ -27,6 +35,7 @@ const FAVORITES_KEY = 'apuracao2026_favorites';
 const PERSISTED_KEYS = [
   'turn',
   'uf',
+  'nationalUfFilter',
   'theme',
   'autoRefresh',
   'refreshInterval',
@@ -41,6 +50,7 @@ export function createInitialState(): AppState {
     page: 'overview',
     turn: 1,
     uf: 'PR',
+    nationalUfFilter: null,
     search: '',
     favorites: [],
     theme: 'system',
@@ -112,5 +122,5 @@ export function toggleFav(state: AppState, turn: Turn, office: OfficeKey, uf: st
 }
 
 export function officeUfForCurrent(state: AppState, office: OfficeKey): string | null {
-  return OFFICES[office].scope === 'national' ? null : state.uf;
+  return OFFICES[office].scope === 'national' ? state.nationalUfFilter : state.uf;
 }

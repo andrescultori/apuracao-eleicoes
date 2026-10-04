@@ -21,8 +21,16 @@ import type {
 
 const candidateListCache = new Map<string, Candidate[]>();
 
+/**
+ * Eleitorado do escopo pedido. Para um cargo nacional (Presidente) sem UF
+ * (`uf === null` — o uso padrão em todo o app fora do mapa), é o eleitorado
+ * do Brasil inteiro. Quando uma UF é passada mesmo para um cargo nacional —
+ * só acontece ao filtrar o mapa por estado (ver `brazilMap.ts`) —, devolve o
+ * eleitorado só daquela UF, para que os totais exibidos façam sentido como
+ * "votos desse estado", não do país inteiro.
+ */
 export function getScopeElectorate(office: OfficeKey, uf: string | null): number {
-  if (OFFICES[office].scope === 'national') {
+  if (OFFICES[office].scope === 'national' && !uf) {
     const total = UFS.reduce((sum, u) => sum + u.peso, 0);
     return total * 1_000_000;
   }
@@ -109,10 +117,18 @@ export function computeResults(
   const totalValid = totalApurados * VALID_RATIO[office];
 
   const amp = 0.36 * (1 - t);
+  // Viés regional: só existe quando uma UF é passada para um cargo nacional
+  // (filtro do mapa, ver `brazilMap.ts`) — ao contrário de `amp`, não diminui
+  // com `t`, porque representa uma preferência regional real que continua
+  // valendo mesmo com a apuração 100% concluída (sem isso, o mapa de
+  // demonstração mostraria o Brasil inteiro com a mesma cor ao final).
+  const regionalAmp = OFFICES[office].scope === 'national' && uf ? 0.12 : 0;
   const raws = candidates.map((c) => {
     const seed = `${office}|${scope}|t${turn}|${c.id}|tick${tickIndex}`;
     const noise = (randFor(seed) - 0.5) * 2 * amp;
-    return Math.max(0.002, c.finalShare + noise);
+    const regionalSeed = `${office}|uf-bias|${uf}|t${turn}|${c.id}`;
+    const regionalBias = regionalAmp ? (randFor(regionalSeed) - 0.5) * 2 * regionalAmp : 0;
+    return Math.max(0.002, c.finalShare + noise + regionalBias);
   });
   const rawSum = raws.reduce((a, b) => a + b, 0);
   const pcts = raws.map((r) => (r / rawSum) * 100);

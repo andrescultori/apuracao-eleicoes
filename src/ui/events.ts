@@ -1,3 +1,4 @@
+import { OFFICES } from '../data/domain';
 import type { OfficeKey, PageKey, Turn } from '../data/types';
 import type { AppContext } from '../state/appContext';
 import { timeAgoLabel } from '../state/appContext';
@@ -39,6 +40,20 @@ export function setupEvents(app: AppContext, root: HTMLElement): void {
         app.state.turn = Number(el.getAttribute('data-value')) as Turn;
         app.persist();
         return;
+      case 'set-map-uf': {
+        const office = el.getAttribute('data-office') as OfficeKey;
+        const value = el.getAttribute('data-value')!;
+        if (OFFICES[office].scope === 'national') {
+          // Clicar de novo na mesma UF desmarca, voltando à visão Brasil
+          // inteiro — cargos nacionais (Presidente) não têm uma UF "padrão"
+          // como os de abrangência estadual (que sempre têm alguma selecionada).
+          app.state.nationalUfFilter = app.state.nationalUfFilter === value ? null : value;
+        } else {
+          app.state.uf = value;
+        }
+        app.persist();
+        return;
+      }
       case 'toggle-fav':
       case 'unfav': {
         const turn = Number(el.getAttribute('data-turn')) as Turn;
