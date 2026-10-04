@@ -891,6 +891,22 @@ table.results tbody tr:hover {
   table.results td.cand-cell::before {
     content: none;
   }
+  /* A célula do candidato não é um par "rótulo: valor" como as outras (por
+     isso o ::before acima é removido) — a regra genérica de td acima
+     (justify-content: space-between) empurraria a estrela de favorito pra
+     esquerda e o nome pra direita, quebrando os dois em linhas separadas
+     quando o nome é longo. Aqui eles só precisam fluir juntos, grudados. */
+  table.results td.cand-cell {
+    justify-content: flex-start;
+    align-items: flex-start;
+  }
+  table.results td.cand-cell .cand-name {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  table.results td.cand-cell .elected-badge {
+    flex-basis: 100%;
+  }
   .table-scroll {
     overflow-x: visible;
   }
