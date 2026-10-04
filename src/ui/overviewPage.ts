@@ -14,7 +14,7 @@ export function OverviewPage(app: AppContext): string {
       `<button class="overview-card" data-action="go" data-page="${office}">` +
       `<div class="office-name">${cfg.label}${uf ? ' — ' + uf : ' — Brasil'}</div>` +
       (leader
-        ? `<div class="leader-pct num">${fmtPct(leader.percentage)}%</div><div class="leader-name">${esc(leader.name)}</div>`
+        ? `<div class="leader-pct num">${fmtPct(leader.percentage)}%</div><div class="leader-name" title="${esc(leader.name)}">${esc(leader.ballotName)}</div>`
         : '<div class="leader-name">Sem dados</div>') +
       `<div class="office-status">${status.label}</div>` +
       '</button>'

@@ -53,7 +53,7 @@ export function BrazilMap(app: AppContext, office: OfficeKey, turn: Turn): strin
       background = partyFillColor(leader.party, leader.elected === true);
       const statusLabel = leader.elected ? 'eleito matematicamente' : 'ainda em apuração';
       title =
-        `${u.nome} (${u.sigla}): ${leader.name} (${leader.party}) lidera com ${fmtInt(leader.votes)} votos ` +
+        `${u.nome} (${u.sigla}): ${leader.ballotName} (${leader.party}) lidera com ${fmtInt(leader.votes)} votos ` +
         `(${fmtPct(leader.percentage)}%) — ${statusLabel}`;
     } else {
       background = 'var(--surface-2)';
