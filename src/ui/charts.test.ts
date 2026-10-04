@@ -56,12 +56,14 @@ describe('EvolutionChart — modo TSE', () => {
     expect(html).not.toContain('<svg');
   });
 
-  it('desenha o gráfico real a partir do histórico, depois de 2+ buscas com fetchedAt diferente', () => {
+  it('desenha o gráfico real a partir do histórico, depois de 2+ buscas espaçadas pelo intervalo mínimo', () => {
     const app = new AppContext();
     app.state.dataMode = 'tse';
+    const FIVE_MIN = 5 * 60 * 1000;
+    const T0 = 1_700_000_000_000; // timestamp realista (Date.now() nunca é 0)
     app.tseProvider = sequencedProvider([
-      { fetchedAt: 1000, candidates: [fakeCandidate('a', 'Candidato A', 40)] },
-      { fetchedAt: 2000, candidates: [fakeCandidate('a', 'Candidato A', 55)] },
+      { fetchedAt: T0, candidates: [fakeCandidate('a', 'Candidato A', 40)] },
+      { fetchedAt: T0 + FIVE_MIN, candidates: [fakeCandidate('a', 'Candidato A', 55)] },
     ]);
     app.getOfficeResults('presidente', null, 1);
     app.getOfficeResults('presidente', null, 1);
@@ -80,6 +82,23 @@ describe('EvolutionChart — modo TSE', () => {
     app.state.dataMode = 'tse';
     app.tseProvider = sequencedProvider([{ fetchedAt: 1000, candidates: [fakeCandidate('a', 'Candidato A', 40)] }]);
     // Simula múltiplos renders entre buscas reais — fetchedAt não muda.
+    app.getOfficeResults('presidente', null, 1);
+    app.getOfficeResults('presidente', null, 1);
+    app.getOfficeResults('presidente', null, 1);
+    expect(app.getResultsHistory('presidente', null, 1)).toHaveLength(1);
+  });
+
+  it('não registra um ponto novo antes do intervalo mínimo (5 min) — eixo X largo em vez de minuto a minuto', () => {
+    const app = new AppContext();
+    app.state.dataMode = 'tse';
+    const T0 = 1_700_000_000_000; // timestamp realista (Date.now() nunca é 0)
+    app.tseProvider = sequencedProvider([
+      { fetchedAt: T0, candidates: [fakeCandidate('a', 'Candidato A', 40)] },
+      // Autoatualização de 30s (o mínimo configurável) chegando com dado
+      // novo bem antes dos 5 min — não deveria virar um ponto novo.
+      { fetchedAt: T0 + 30_000, candidates: [fakeCandidate('a', 'Candidato A', 41)] },
+      { fetchedAt: T0 + 60_000, candidates: [fakeCandidate('a', 'Candidato A', 42)] },
+    ]);
     app.getOfficeResults('presidente', null, 1);
     app.getOfficeResults('presidente', null, 1);
     app.getOfficeResults('presidente', null, 1);
