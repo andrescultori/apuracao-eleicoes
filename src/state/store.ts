@@ -68,7 +68,7 @@ export function createInitialState(): AppState {
     settingsOpen: false,
     ufPickerOpen: false,
     lastUpdate: Date.now(),
-    dataMode: 'mock',
+    dataMode: 'tse',
     tseEnv: 'oficial',
     voteBasis: 'valid',
     _focusSearch: false,

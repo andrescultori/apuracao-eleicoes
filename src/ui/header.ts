@@ -1,5 +1,5 @@
 import type { AppContext } from '../state/appContext';
-import { timeAgoLabel } from '../state/appContext';
+import { lastUpdateWallClock, timeAgoLabel } from '../state/appContext';
 import { ICONS } from './icons';
 
 export function Header(app: AppContext): string {
@@ -14,10 +14,13 @@ export function Header(app: AppContext): string {
     '</div>' +
     '</div>' +
     '<div class="topbar-actions">' +
+    '<div class="status-col">' +
     '<span class="status-pill" aria-live="polite">' +
     `<span class="dot ${app.sim.fetchError ? 'err' : 'pulse'}"></span>` +
     `<span>${app.sim.fetchError ? 'Falha ao atualizar' : timeAgoLabel(app.state.lastUpdate)}</span>` +
     '</span>' +
+    `<span class="status-clock num">${lastUpdateWallClock(app.state.lastUpdate)}</span>` +
+    '</div>' +
     `<button class="icon-btn" data-action="refresh-now" aria-label="Atualizar agora" title="Atualizar agora">${ICONS.refresh}</button>` +
     `<button class="icon-btn" data-action="open-settings" aria-label="Configurações" title="Configurações">${ICONS.settings}</button>` +
     '</div>' +

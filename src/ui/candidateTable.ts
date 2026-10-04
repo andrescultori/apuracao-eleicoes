@@ -3,7 +3,11 @@ import type { AppContext } from '../state/appContext';
 import { esc, fmtInt, fmtPct } from '../util';
 
 export function renderDeltaVotes(cur: CandidateResult, prev: CandidateResult | undefined): string {
-  if (!prev) return '<span class="delta flat">— sem histórico</span>';
+  // Sem ponto anterior pra comparar (sempre o caso no modo TSE, e no modo
+  // demonstração antes do primeiro "tick") — nada a mostrar, mesmo
+  // comportamento de `renderDeltaPos` abaixo, em vez de um rótulo "sem
+  // histórico" repetido em toda linha da tabela.
+  if (!prev) return '';
   const d = cur.votes - prev.votes;
   if (d === 0) return '<span class="delta flat">— sem alteração</span>';
   return `<span class="delta up">+${fmtInt(d)} votos</span>`;

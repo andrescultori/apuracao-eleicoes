@@ -67,7 +67,7 @@ export function OfficePage(app: AppContext, office: OfficeKey): string {
   return (
     '<div class="stack">' +
     FilterBar(app, office) +
-    SummaryCards(app, results, sectionsPercent) +
+    SummaryCards(results, sectionsPercent) +
     UpdateRow(app) +
     FavoritesSection(app, office, app.state.turn, uf, results) +
     VoteChart(app, office, app.state.turn, uf, results) +

@@ -1,11 +1,11 @@
 import type { ElectionResults } from '../data/types';
 import type { AppContext } from '../state/appContext';
-import { lastUpdateClock, timeAgoLabel } from '../state/appContext';
+import { timeAgoLabel } from '../state/appContext';
 import { statusForT } from '../data/mockDataProvider';
 import { clamp, fmtInt, fmtPct } from '../util';
 import { ICONS } from './icons';
 
-export function SummaryCards(app: AppContext, results: ElectionResults, sectionsPercent: number | null): string {
+export function SummaryCards(results: ElectionResults, sectionsPercent: number | null): string {
   // Mostra a contagem bruta (X de Y seções) junto do percentual sempre que
   // disponível (modo TSE) — além de informativo, é o que permite comparar
   // diretamente com o número bruto do site oficial do TSE quando o
@@ -24,7 +24,6 @@ export function SummaryCards(app: AppContext, results: ElectionResults, sections
     `<div class="progress-track"><div class="progress-fill" style="width:${sectionsPercent === null ? 0 : clamp(sectionsPercent, 0, 100)}%"></div></div></div>` +
     `<div class="card"><div class="label">Votos apurados</div><div class="value num">${fmtInt(results.totalApurados)}</div></div>` +
     `<div class="card"><div class="label">Votos válidos</div><div class="value num">${fmtInt(results.totalValid)}</div></div>` +
-    `<div class="card"><div class="label">Última atualização</div><div class="value num" style="font-size:19px;">${lastUpdateClock(app)}</div></div>` +
     '</div>'
   );
 }
