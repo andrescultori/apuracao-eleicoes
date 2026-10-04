@@ -28,6 +28,12 @@ export interface DispatchedResults extends ElectionResults {
   providerStatus?: ProviderStatus;
 }
 
+/** Um ponto no histórico de percentuais de uma corrida — ver `AppContext.getResultsHistory`. */
+export interface ResultsHistoryPoint {
+  fetchedAt: number;
+  candidates: { id: string; name: string; percentage: number }[];
+}
+
 /**
  * Recalcula o percentual de cada candidato a partir dos votos brutos, usando
  * `totalValid` (votos válidos) ou `totalApurados` (votos apurados, incluindo
@@ -102,6 +108,19 @@ export class AppContext {
     () => this.update(),
   );
   onChange: (() => void) | null = null;
+  /**
+   * Histórico de percentuais por corrida (modo TSE), usado pelo gráfico de
+   * evolução — diferente do modo demonstração, que já tem seu próprio
+   * histórico simulado (`sim.history`), o modo TSE não tinha nenhum: o
+   * gráfico só mostrava um aviso de "ainda não implementado". Um ponto novo
+   * é registrado sempre que uma busca de verdade chega com dados (nunca a
+   * cada render — `fetchedAt` muda só quando o provedor efetivamente buscou
+   * de novo, ver `recordHistorySnapshot`). Vive em memória, por sessão —
+   * reiniciar o app perde o histórico, assim como `sim.history` no modo
+   * demonstração também não é persistido.
+   */
+  private resultsHistory = new Map<string, ResultsHistoryPoint[]>();
+  private static readonly MAX_HISTORY_POINTS = 60;
 
   constructor() {
     loadPersisted(this.state);
@@ -160,7 +179,9 @@ export class AppContext {
     if (this.state.dataMode === 'tse') {
       const r = this.tseProvider.getResults(office, uf, turn);
       if (r.status === 'ready' && r.data) {
-        return applyElectionCertainty(applyVoteBasis(r.data, this.state.voteBasis), office, turn);
+        const results = applyElectionCertainty(applyVoteBasis(r.data, this.state.voteBasis), office, turn);
+        if (r.fetchedAt) this.recordHistorySnapshot(office, uf, turn, r.fetchedAt, results);
+        return results;
       }
       return { candidates: [], totalValid: 0, totalApurados: 0, providerStatus: r.status };
     }
@@ -169,6 +190,35 @@ export class AppContext {
 
   computeResultsAt(office: OfficeKey, uf: string | null, turn: Turn, tick: number, t: number): ElectionResults {
     return computeResults(office, uf, turn, tick, t);
+  }
+
+  private historyKey(office: OfficeKey, uf: string | null, turn: Turn): string {
+    return `${office}|${uf ?? 'BR'}|${turn}`;
+  }
+
+  private recordHistorySnapshot(
+    office: OfficeKey,
+    uf: string | null,
+    turn: Turn,
+    fetchedAt: number,
+    results: ElectionResults,
+  ): void {
+    const key = this.historyKey(office, uf, turn);
+    const list = this.resultsHistory.get(key) ?? [];
+    // `getOfficeResults` é chamado a cada render, não só quando dados novos
+    // chegam — sem isso, cada render repetiria o último ponto.
+    if (list.length && list[list.length - 1]!.fetchedAt === fetchedAt) return;
+    list.push({
+      fetchedAt,
+      candidates: results.candidates.map((c) => ({ id: c.id, name: c.name, percentage: c.percentage })),
+    });
+    if (list.length > AppContext.MAX_HISTORY_POINTS) list.shift();
+    this.resultsHistory.set(key, list);
+  }
+
+  /** Histórico de percentuais já registrado (modo TSE) para uma corrida — ver `EvolutionChart`. */
+  getResultsHistory(office: OfficeKey, uf: string | null, turn: Turn): ResultsHistoryPoint[] {
+    return this.resultsHistory.get(this.historyKey(office, uf, turn)) ?? [];
   }
 
   refreshNow(): void {

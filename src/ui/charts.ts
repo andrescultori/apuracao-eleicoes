@@ -2,6 +2,7 @@ import { OFFICES } from '../data/domain';
 import { generateCandidateList } from '../data/mockDataProvider';
 import type { ElectionResults, OfficeKey, Turn } from '../data/types';
 import type { AppContext } from '../state/appContext';
+import { lastUpdateWallClock } from '../state/appContext';
 import { clamp, esc, fmtPct } from '../util';
 
 export function VoteChart(
@@ -30,23 +31,18 @@ export function VoteChart(
 
 const PALETTE = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)'];
 
-export function EvolutionChart(app: AppContext, office: OfficeKey, turn: Turn, uf: string | null): string {
-  const cfg = OFFICES[office];
-  if (turn === 2 && !cfg.hasRunoff) return '';
-  if (app.state.dataMode === 'tse') {
-    return (
-      '<div class="chart-card"><div class="section-head" style="margin-bottom:6px;"><h2>Evolução da apuração</h2></div>' +
-      '<p class="muted" style="font-size:12.5px;">O histórico de snapshots para este gráfico ainda não é gravado a partir dos ' +
-      'arquivos oficiais do TSE nesta versão — ver "Sobre os dados".</p></div>'
-    );
-  }
-  const candidates = generateCandidateList(office, uf, turn);
-  if (!candidates.length) return '';
-  const top = candidates
-    .slice()
-    .sort((a, b) => b.finalShare - a.finalShare)
-    .slice(0, Math.min(4, candidates.length));
+interface EvolutionSeries {
+  name: string;
+  color: string;
+  pts: number[];
+}
 
+/**
+ * Desenha o SVG do gráfico de evolução a partir de séries já resolvidas
+ * (um percentual por rótulo de tempo) — compartilhado pelos dois modos
+ * (demonstração e TSE), que só diferem em de onde vêm `labels`/`series`.
+ */
+function renderEvolutionSvg(labels: string[], series: EvolutionSeries[]): string {
   const W = 640;
   const H = 220;
   const padL = 34;
@@ -55,16 +51,6 @@ export function EvolutionChart(app: AppContext, office: OfficeKey, turn: Turn, u
   const padB = 26;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
-
-  const hist = app.sim.history;
-  const series = top.map((cand, ci) => {
-    const pts = hist.map((h) => {
-      const res = app.computeResultsAt(office, uf, turn, h.tick, h.t);
-      const found = res.candidates.find((c) => c.id === cand.id);
-      return found ? found.percentage : 0;
-    });
-    return { cand, color: PALETTE[ci % PALETTE.length]!, pts };
-  });
 
   let maxV = 10;
   series.forEach((s) =>
@@ -75,7 +61,7 @@ export function EvolutionChart(app: AppContext, office: OfficeKey, turn: Turn, u
   maxV = Math.ceil((maxV + 6) / 10) * 10;
 
   function xAt(i: number): number {
-    return padL + (hist.length <= 1 ? 0 : (i / (hist.length - 1)) * innerW);
+    return padL + (labels.length <= 1 ? 0 : (i / (labels.length - 1)) * innerW);
   }
   function yAt(v: number): number {
     return padT + innerH - (v / maxV) * innerH;
@@ -89,10 +75,10 @@ export function EvolutionChart(app: AppContext, office: OfficeKey, turn: Turn, u
     gridLines += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--border)" stroke-width="1"/>`;
     gridLines += `<text x="${padL - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="var(--text-3)">${Math.round(val)}%</text>`;
   }
-  const xLabels = hist
-    .map((h, i) => {
-      if (hist.length > 6 && i % 2 !== 0 && i !== hist.length - 1) return '';
-      return `<text x="${xAt(i)}" y="${H - 6}" text-anchor="middle" font-size="10" fill="var(--text-3)">${h.label}</text>`;
+  const xLabels = labels
+    .map((label, i) => {
+      if (labels.length > 6 && i % 2 !== 0 && i !== labels.length - 1) return '';
+      return `<text x="${xAt(i)}" y="${H - 6}" text-anchor="middle" font-size="10" fill="var(--text-3)">${label}</text>`;
     })
     .join('');
 
@@ -111,7 +97,7 @@ export function EvolutionChart(app: AppContext, office: OfficeKey, turn: Turn, u
   const legend = series
     .map(
       (s) =>
-        `<div class="legend-item"><span class="legend-dot" style="background:${s.color}"></span>${esc(s.cand.name)}</div>`,
+        `<div class="legend-item"><span class="legend-dot" style="background:${s.color}"></span>${esc(s.name)}</div>`,
     )
     .join('');
 
@@ -126,4 +112,52 @@ export function EvolutionChart(app: AppContext, office: OfficeKey, turn: Turn, u
     `<div class="legend">${legend}</div>` +
     '</div>'
   );
+}
+
+export function EvolutionChart(app: AppContext, office: OfficeKey, turn: Turn, uf: string | null): string {
+  const cfg = OFFICES[office];
+  if (turn === 2 && !cfg.hasRunoff) return '';
+
+  if (app.state.dataMode === 'tse') {
+    const hist = app.getResultsHistory(office, uf, turn);
+    if (hist.length < 2) {
+      return (
+        '<div class="chart-card"><div class="section-head" style="margin-bottom:6px;"><h2>Evolução da apuração</h2></div>' +
+        '<p class="muted" style="font-size:12.5px;">Ainda não há pontos suficientes no histórico desta corrida — ' +
+        'volte depois de mais uma atualização.</p></div>'
+      );
+    }
+    const latest = hist[hist.length - 1]!;
+    const top = latest.candidates
+      .slice()
+      .sort((a, b) => b.percentage - a.percentage)
+      .slice(0, Math.min(4, latest.candidates.length));
+    const labels = hist.map((h) => lastUpdateWallClock(h.fetchedAt));
+    const series: EvolutionSeries[] = top.map((cand, ci) => ({
+      name: cand.name,
+      color: PALETTE[ci % PALETTE.length]!,
+      pts: hist.map((h) => h.candidates.find((c) => c.id === cand.id)?.percentage ?? 0),
+    }));
+    return renderEvolutionSvg(labels, series);
+  }
+
+  const candidates = generateCandidateList(office, uf, turn);
+  if (!candidates.length) return '';
+  const top = candidates
+    .slice()
+    .sort((a, b) => b.finalShare - a.finalShare)
+    .slice(0, Math.min(4, candidates.length));
+
+  const hist = app.sim.history;
+  const labels = hist.map((h) => h.label);
+  const series: EvolutionSeries[] = top.map((cand, ci) => ({
+    name: cand.name,
+    color: PALETTE[ci % PALETTE.length]!,
+    pts: hist.map((h) => {
+      const res = app.computeResultsAt(office, uf, turn, h.tick, h.t);
+      const found = res.candidates.find((c) => c.id === cand.id);
+      return found ? found.percentage : 0;
+    }),
+  }));
+  return renderEvolutionSvg(labels, series);
 }
