@@ -37,10 +37,6 @@ export function getScopeElectorate(office: OfficeKey, uf: string | null): number
   return (uf && UF_MAP[uf] ? UF_MAP[uf].peso : 1) * 1_000_000;
 }
 
-export function getScopeSections(office: OfficeKey, uf: string | null): number {
-  return Math.round(getScopeElectorate(office, uf) / 320);
-}
-
 export function generateCandidateList(office: OfficeKey, uf: string | null, turn: Turn): Candidate[] {
   const scope = OFFICES[office].scope === 'national' ? 'BR' : (uf ?? '');
   const key = `${office}|${scope}|t${turn}`;

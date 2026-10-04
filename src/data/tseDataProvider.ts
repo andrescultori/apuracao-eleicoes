@@ -185,6 +185,8 @@ export interface Ea14Payload {
 export interface AccompanimentSections {
   total: number;
   counted: number;
+  /** Percentual de seções totalizadas já calculado pelo TSE (campo `pstn`) — ver nota em `ElectionResults.sectionsPercent`. */
+  percent: number;
 }
 
 export class Ea14ParseError extends Error {}
@@ -253,7 +255,9 @@ export function findAccompanimentSections(payload: Ea14Payload, uf: string | nul
     ? payload.abr.find((a) => a.tpabr === 'uf' && a.cdabr === uf.toLowerCase())
     : payload.abr.find((a) => a.tpabr === 'br');
   if (!item) return null;
-  return { total: Number(item.s.ts), counted: Number(item.s.st) };
+  // `pstn` já é o percentual calculado pelo próprio TSE — nunca recalculado
+  // aqui a partir de ts/st (ver nota em `ElectionResults.sectionsPercent`).
+  return { total: Number(item.s.ts), counted: Number(item.s.st), percent: Number(item.s.pstn) };
 }
 
 export interface Electorado {
@@ -281,7 +285,9 @@ function mergeAccompaniment(data: ElectionResults, payload: Ea14Payload, uf: str
   const electorado = findElectorado(payload, uf);
   return {
     ...data,
-    ...(sections ? { sectionsTotal: sections.total, sectionsCounted: sections.counted } : {}),
+    ...(sections
+      ? { sectionsTotal: sections.total, sectionsCounted: sections.counted, sectionsPercent: sections.percent }
+      : {}),
     ...(electorado ? { electorateTotal: electorado.total, electorateAccountedFor: electorado.accountedFor } : {}),
   };
 }
