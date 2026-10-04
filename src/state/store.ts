@@ -19,6 +19,15 @@ export interface AppState {
   autoRefresh: boolean;
   refreshInterval: number;
   settingsOpen: boolean;
+  /**
+   * Painel do seletor de estado (ver `filterBar.ts`) aberto. Substituiu o
+   * `<select>` nativo, que no iOS/Safari era fechado pelo navegador no meio
+   * do clique sempre que o app re-renderizava a página (innerHTML inteiro
+   * trocado) — um `<select>` aberto não sobrevive a isso, mas um painel
+   * nosso, feito de botões normais, sim. Transitório, como `settingsOpen`:
+   * não é persistido.
+   */
+  ufPickerOpen: boolean;
   lastUpdate: number;
   /** 'mock' (demonstração) | 'tse' (dados oficiais — ver TSE_CONFIG) */
   dataMode: DataMode;
@@ -57,6 +66,7 @@ export function createInitialState(): AppState {
     autoRefresh: true,
     refreshInterval: 30_000,
     settingsOpen: false,
+    ufPickerOpen: false,
     lastUpdate: Date.now(),
     dataMode: 'mock',
     tseEnv: 'oficial',

@@ -32,13 +32,18 @@ export function FilterBar(app: AppContext, office: OfficeKey, opts: FilterBarOpt
 
   let ufField: string;
   if (showUf) {
+    const open = app.state.ufPickerOpen;
     const options = UFS.map(
       (u) =>
-        `<option value="${u.sigla}" ${app.state.uf === u.sigla ? 'selected' : ''}>${esc(u.nome)} — ${u.sigla}</option>`,
+        `<button type="button" class="uf-opt ${app.state.uf === u.sigla ? 'active' : ''}" role="option" ` +
+        `aria-selected="${app.state.uf === u.sigla}" data-action="set-uf" data-value="${u.sigla}" title="${esc(u.nome)}">${u.sigla}</button>`,
     ).join('');
     ufField =
-      '<div class="field"><label for="uf-select">Estado</label>' +
-      `<select class="ui" id="uf-select" data-action="set-uf">${options}</select></div>`;
+      '<div class="field uf-picker"><label id="lbl-uf">Estado</label>' +
+      `<button type="button" class="uf-trigger" data-action="toggle-uf-picker" aria-haspopup="listbox" aria-expanded="${open}" aria-labelledby="lbl-uf">` +
+      `<span>${esc(app.state.uf)}</span>${ICONS.chevronDown}</button>` +
+      (open ? `<div class="uf-panel" role="listbox" aria-label="Selecionar estado">${options}</div>` : '') +
+      '</div>';
   } else {
     ufField = `<div class="field"><label>Abrangência</label>${nationalScopeTag(app, office)}</div>`;
   }
