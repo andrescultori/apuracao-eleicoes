@@ -1,4 +1,3 @@
-import type { ProviderStatus } from '../data/types';
 import type { AppContext } from '../state/appContext';
 import { timeAgoLabel } from '../state/appContext';
 import { ICONS } from './icons';
@@ -27,27 +26,17 @@ export function Header(app: AppContext): string {
   );
 }
 
-const TSE_STATUS_BANNER_LABEL: Record<ProviderStatus, string> = {
-  ready:
-    'MODO DADOS OFICIAIS (TSE) — conectado ao catálogo do TSE; a assinatura de cada arquivo é verificada antes de exibir dados.',
-  loading: 'MODO DADOS OFICIAIS (TSE) — buscando e verificando os dados do TSE...',
-  error: 'MODO DADOS OFICIAIS (TSE) — não foi possível obter ou verificar os dados do TSE agora. Ver "Sobre os dados".',
-  unconfigured:
-    'MODO DADOS OFICIAIS (TSE) — esta eleição ainda não está disponível no catálogo publicado pelo TSE. Ver "Sobre os dados".',
-};
-
-export function DemoBanner(app: AppContext): string {
-  let html: string;
-  if (app.state.dataMode === 'tse') {
-    const label = TSE_STATUS_BANNER_LABEL[app.electionDataStatus()];
-    html = `<div class="demo-banner"><div class="shell">ⓘ ${label}</div></div>`;
-  } else {
-    html =
-      '<div class="demo-banner"><div class="shell">⚠ MODO DEMONSTRAÇÃO — DADOS FICTÍCIOS, gerados para fins de demonstração da interface.</div></div>';
-  }
-  if (app.sim.fetchError) {
-    html +=
-      '<div class="error-banner shell" style="max-width:1180px;margin:0 auto;">⚠ Não foi possível atualizar os dados. Exibindo última atualização disponível.</div>';
-  }
-  return html;
+/**
+ * O status do modo ativo (demonstração ou dados oficiais do TSE) mora em
+ * "Configurações" — ver `settingsModal.ts` — não mais numa barra fixa no
+ * topo de toda página, para manter a tela principal mais limpa. Só a falha
+ * de atualização (algo que acabou de dar errado, não um indicador de modo)
+ * continua aparecendo aqui.
+ */
+export function FetchErrorBanner(app: AppContext): string {
+  if (!app.sim.fetchError) return '';
+  return (
+    '<div class="error-banner shell" style="max-width:1180px;margin:0 auto;">' +
+    '⚠ Não foi possível atualizar os dados. Exibindo última atualização disponível.</div>'
+  );
 }
