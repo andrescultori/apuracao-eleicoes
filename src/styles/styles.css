@@ -868,14 +868,19 @@ table.results tbody tr:hover {
   table.results thead,
   table.results tbody,
   table.results th,
-  table.results td,
-  table.results tr {
+  table.results td {
     display: block;
   }
   table.results thead {
     display: none;
   }
+  /* O nome do candidato vem primeiro visualmente, com o resto dos campos
+     (posição, nº, partido, votos, %) abaixo — a ordem no DOM/tabela
+     continua a mesma (Pos. primeiro, como faz sentido numa tabela
+     ordenada), só a ordem visual do card muda via flex + `order`. */
   table.results tr {
+    display: flex;
+    flex-direction: column;
     border-bottom: 1px solid var(--border);
     padding: 11px 12px;
   }
@@ -908,12 +913,15 @@ table.results tbody tr:hover {
      esquerda e o nome pra direita, quebrando os dois em linhas separadas
      quando o nome é longo. Aqui eles só precisam fluir juntos, grudados. */
   table.results td.cand-cell {
+    order: -1;
     justify-content: flex-start;
     align-items: flex-start;
+    margin-bottom: 4px;
   }
   table.results td.cand-cell .cand-name {
     flex: 1 1 auto;
     min-width: 0;
+    font-size: 15px;
   }
   table.results td.cand-cell .elected-badge {
     flex-basis: 100%;
@@ -1051,6 +1059,26 @@ table.results tbody tr:hover {
   font-size: 12.5px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+.bar-label.sigla {
+  width: 36px;
+}
+
+/* mapa + card de urnas apuradas por estado, lado a lado no desktop */
+.map-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.map-row > .map-card {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-bottom: 0;
+}
+@media (max-width: 900px) {
+  .map-row {
+    flex-direction: column;
+  }
 }
 
 /* evolution */

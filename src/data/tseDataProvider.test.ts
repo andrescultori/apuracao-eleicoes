@@ -333,6 +333,58 @@ describe('createTseDataProvider — verificação de assinatura ligada de ponta 
     });
   });
 
+  it('rebusca o acompanhamento (EA14) periodicamente — não trava no primeiro valor obtido', async () => {
+    // Bug real: "seções totalizadas" ficava divergindo cada vez mais do site
+    // oficial ao longo do dia, mesmo com a fórmula do percentual já correta —
+    // causa raiz era `ensureAccompaniment` nunca tentar de novo depois da
+    // primeira busca bem-sucedida (diferente do resultado/EA20, que sempre
+    // rebusca respeitando o cooldown). Este teste simula o TSE publicando
+    // mais seções totalizadas num instante posterior e confirma que uma nova
+    // chamada a getResults, depois do cooldown, reflete o valor atualizado.
+    const ea20Url = presidenteEa20Url();
+    const ea14Url = accompanimentUrl('presidente');
+
+    const earlyPayload = JSON.parse(JSON.stringify(ea14Sample)) as {
+      abr: Array<{ cdabr: string; s: Record<string, string> }>;
+    };
+    const piEarly = earlyPayload.abr.find((a) => a.cdabr === 'pi')!;
+    piEarly.s['st'] = '5000'; // pi ainda não totalizado (ts continua 11803)
+
+    const responses: Record<string, string> = {
+      [OFICIAL_EA11_URL]: await signEdDSA(ea11Sample),
+      [ea20Url]: await signEdDSA(ea20Sample),
+      [ea14Url]: await signEdDSA(earlyPayload),
+    };
+    const queue = new RequestQueue({ fetchImpl: fakeFetch(responses), intervalMs: 0 });
+    const provider = createTseDataProvider(() => 'oficial', queue);
+
+    let now = Date.now();
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    try {
+      provider.getResults('presidente', null, 1);
+      await vi.waitFor(() => {
+        const r = provider.getResults('presidente', null, 1);
+        expect(r.status).toBe('ready');
+        // pi parcial (5000) + sp completo (106580).
+        expect(r.data?.sectionsCounted).toBe(111580);
+      });
+
+      // TSE "publica" mais seções totalizadas; relógio avança além do
+      // cooldown de novas tentativas.
+      responses[ea14Url] = await signEdDSA(ea14Sample);
+      now += 6000;
+
+      provider.getResults('presidente', null, 1);
+      await vi.waitFor(() => {
+        const r = provider.getResults('presidente', null, 1);
+        // pi completo (11803) + sp completo (106580) — não trava em 111580.
+        expect(r.data?.sectionsCounted).toBe(118383);
+      });
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
   it('chama onUpdate quando a busca em segundo plano termina, guiando a UI sem polling', async () => {
     // Reproduz o bug real: a UI só re-renderiza (chamando getResults de novo)
     // em resposta a uma notificação, nunca sozinha. As outras "chega a
