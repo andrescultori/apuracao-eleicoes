@@ -28,6 +28,13 @@ jobs:
         env:
           # Página de projeto: servida em /<repo>/, não na raiz do domínio.
           BASE_PATH: /apuracao-eleicoes/
+      # Páginas do GitHub não tem rewrite de servidor — um link direto pra
+      # uma rota do app (ex.: /apuracao-eleicoes/governador/sp) bateria num
+      # 404 real, já que esse caminho não existe como arquivo. Servindo o
+      # mesmo index.html também como 404.html, o roteamento do lado do
+      # cliente (ver src/state/router.ts) assume a partir daí normalmente —
+      # a barra de endereço mantém a URL original, só o conteúdo que muda.
+      - run: cp dist/index.html dist/404.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
