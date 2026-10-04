@@ -17,21 +17,19 @@ import {
   favKey,
   isFav as storeIsFav,
   loadPersisted,
+  loadResultsHistory,
   officeUfForCurrent,
   persistFavorites,
+  persistResultsHistory,
   persistState,
   toggleFav as storeToggleFav,
 } from './store';
-import type { AppState } from './store';
+import type { AppState, ResultsHistoryPoint } from './store';
+
+export type { ResultsHistoryPoint } from './store';
 
 export interface DispatchedResults extends ElectionResults {
   providerStatus?: ProviderStatus;
-}
-
-/** Um ponto no histórico de percentuais de uma corrida — ver `AppContext.getResultsHistory`. */
-export interface ResultsHistoryPoint {
-  fetchedAt: number;
-  candidates: { id: string; ballotName: string; percentage: number }[];
 }
 
 /**
@@ -115,11 +113,14 @@ export class AppContext {
    * gráfico só mostrava um aviso de "ainda não implementado". Um ponto novo
    * é registrado sempre que uma busca de verdade chega com dados (nunca a
    * cada render — `fetchedAt` muda só quando o provedor efetivamente buscou
-   * de novo, ver `recordHistorySnapshot`). Vive em memória, por sessão —
-   * reiniciar o app perde o histórico, assim como `sim.history` no modo
-   * demonstração também não é persistido.
+   * de novo, ver `recordHistorySnapshot`). Persistido (ver `loadResultsHistory`/
+   * `persistResultsHistory` em store.ts): sem isso, recarregar a página (ou
+   * navegar — cada navegação recria o `AppContext`) apagava tudo, e com o
+   * intervalo mínimo de 5 min entre pontos, o gráfico quase nunca acumulava
+   * os 2 pontos mínimos antes de alguém recarregar — ficava sempre preso em
+   * "ainda não há pontos suficientes".
    */
-  private resultsHistory = new Map<string, ResultsHistoryPoint[]>();
+  private resultsHistory: Map<string, ResultsHistoryPoint[]> = new Map(Object.entries(loadResultsHistory()));
   // Um ponto a cada busca de verdade (a cada tick da autoatualização, que
   // pode ser configurada pra até 10s) deixava o eixo X do gráfico de
   // evolução cobrindo só alguns minutos — perto demais pra enxergar
@@ -225,6 +226,7 @@ export class AppContext {
     });
     if (list.length > AppContext.MAX_HISTORY_POINTS) list.shift();
     this.resultsHistory.set(key, list);
+    persistResultsHistory(Object.fromEntries(this.resultsHistory));
   }
 
   /** Histórico de percentuais já registrado (modo TSE) para uma corrida — ver `EvolutionChart`. */

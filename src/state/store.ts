@@ -45,8 +45,15 @@ export interface AppState {
   _focusSearch: boolean;
 }
 
+/** Um ponto no histórico de percentuais de uma corrida — ver `AppContext.getResultsHistory`. */
+export interface ResultsHistoryPoint {
+  fetchedAt: number;
+  candidates: { id: string; ballotName: string; percentage: number }[];
+}
+
 const STATE_KEY = 'apuracao2026_state';
 const FAVORITES_KEY = 'apuracao2026_favorites';
+const HISTORY_KEY = 'apuracao2026_history';
 
 const PERSISTED_KEYS = [
   'turn',
@@ -119,6 +126,32 @@ export function persistFavorites(state: AppState): void {
     localStorage.setItem(FAVORITES_KEY, JSON.stringify(state.favorites));
   } catch {
     // localStorage indisponível
+  }
+}
+
+/**
+ * Histórico de percentuais do gráfico de evolução (modo TSE), por corrida —
+ * ver `AppContext.getResultsHistory`. Persistido (diferente de quase todo o
+ * resto do estado "ao vivo") porque, sem isso, ele vivia só em memória do
+ * `AppContext` e se perdia a cada recarregamento de página — o gráfico quase
+ * nunca acumulava os 2 pontos mínimos antes do usuário navegar ou recarregar,
+ * mostrando sempre "ainda não há pontos suficientes".
+ */
+export function loadResultsHistory(): Record<string, ResultsHistoryPoint[]> {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as Record<string, ResultsHistoryPoint[]>;
+  } catch {
+    return {};
+  }
+}
+
+export function persistResultsHistory(history: Record<string, ResultsHistoryPoint[]>): void {
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  } catch {
+    // localStorage indisponível — histórico não sobrevive a um recarregamento nesta sessão
   }
 }
 
