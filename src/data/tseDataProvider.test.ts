@@ -99,13 +99,13 @@ describe('parseEa14Payload / findAccompanimentSections', () => {
     const payload = parseEa14Payload(ea14Sample);
     const sections = findAccompanimentSections(payload, null);
     // valores reais do arquivo: s.ts="528951", s.st="528951" (100% totalizado).
-    expect(sections).toEqual({ total: 528951, counted: 528951 });
+    expect(sections).toEqual({ total: 528951, counted: 528951, percent: 100 });
   });
 
   it('encontra a entrada de uma UF específica, casando cdabr em minúsculo', () => {
     const payload = parseEa14Payload(ea14Sample);
     const sections = findAccompanimentSections(payload, 'SP');
-    expect(sections).toEqual({ total: 106580, counted: 106580 });
+    expect(sections).toEqual({ total: 106580, counted: 106580, percent: 100 });
   });
 
   it('devolve null quando a UF pedida não está no arquivo', () => {
@@ -133,7 +133,7 @@ describe('parseEa14Payload / findAccompanimentSections', () => {
     const parsedBr = payload.abr.find((a) => a.cdabr === 'br');
     expect(parsedBr?.e).toBeUndefined();
     // seções continuam funcionando normalmente, mesmo com "e" malformado.
-    expect(findAccompanimentSections(payload, null)).toEqual({ total: 528951, counted: 528951 });
+    expect(findAccompanimentSections(payload, null)).toEqual({ total: 528951, counted: 528951, percent: 100 });
   });
 
   it('não lança quando "e" está totalmente ausente', () => {

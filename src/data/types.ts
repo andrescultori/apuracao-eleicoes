@@ -59,6 +59,16 @@ export interface ElectionResults {
   sectionsTotal?: number;
   sectionsCounted?: number;
   /**
+   * Percentual de seções totalizadas, já calculado pelo próprio TSE (campo
+   * `pstn` do EA14) — usado para exibição em vez de `sectionsCounted /
+   * sectionsTotal * 100`: o valor publicado pelo TSE não bate com essa conta
+   * simples (confirmado por divergência real entre o app e o site oficial),
+   * então a % exibida precisa ser a que o TSE já calculou, não uma
+   * recalculada aqui. `sectionsTotal`/`sectionsCounted` continuam existindo
+   * para mostrar as contagens brutas.
+   */
+  sectionsPercent?: number;
+  /**
    * Eleitorado total do escopo (UF ou Brasil) e quanto dele já foi
    * contabilizado (comparecimento + abstenção) nas seções já totalizadas —
    * vem do mesmo arquivo de acompanhamento que `sectionsTotal`/`sectionsCounted`.

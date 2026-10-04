@@ -1,5 +1,5 @@
 import { OFFICES } from '../data/domain';
-import { computeResults, getScopeSections } from '../data/mockDataProvider';
+import { computeResults } from '../data/mockDataProvider';
 import type { CandidateResult, OfficeKey, ProviderStatus } from '../data/types';
 import type { AppContext } from '../state/appContext';
 import { BrazilMap, supportsMap } from './brazilMap';
@@ -42,14 +42,15 @@ export function OfficePage(app: AppContext, office: OfficeKey): string {
       prevById[c.id] = c;
     });
 
-  const mockTotalSections = getScopeSections(office, uf);
-  // No modo TSE, o número real de seções totalizadas vem do arquivo de
-  // acompanhamento (EA14/EA15, ver tseDataProvider.ts) — enquanto ele ainda
-  // não chegou, `sectionsTotal`/`sectionsCounted` ficam `undefined` e a UI
-  // mostra "—", nunca um 0% enganoso como se a apuração não tivesse começado.
-  const totalSections = app.state.dataMode === 'tse' ? (results.sectionsTotal ?? 0) : mockTotalSections;
-  const countedSections =
-    app.state.dataMode === 'tse' ? (results.sectionsCounted ?? null) : Math.round(mockTotalSections * app.sim.t);
+  // No modo TSE, o percentual de seções totalizadas vem pronto do arquivo de
+  // acompanhamento (EA14/EA15, campo `pstn` — já calculado pelo TSE, nunca
+  // recalculado por `sectionsCounted / sectionsTotal`, que diverge do
+  // oficial — ver nota em `ElectionResults.sectionsPercent`). Enquanto o
+  // arquivo ainda não chegou, fica `undefined` e a UI mostra "—", nunca um 0%
+  // enganoso como se a apuração não tivesse começado. No modo demonstração,
+  // sem um "oficial" para seguir, o percentual é mesmo calculado a partir da
+  // simulação.
+  const sectionsPercent = app.state.dataMode === 'tse' ? (results.sectionsPercent ?? null) : app.sim.t * 100;
 
   if (app.state.dataMode === 'tse' && results.providerStatus && results.providerStatus !== 'ready') {
     const message = TSE_STATUS_EMPTY_STATE_MESSAGE[results.providerStatus];
@@ -66,7 +67,7 @@ export function OfficePage(app: AppContext, office: OfficeKey): string {
   return (
     '<div class="stack">' +
     FilterBar(app, office) +
-    SummaryCards(app, results, totalSections, countedSections) +
+    SummaryCards(app, results, sectionsPercent) +
     UpdateRow(app) +
     FavoritesSection(app, office, app.state.turn, uf, results) +
     VoteChart(app, office, app.state.turn, uf, results) +
