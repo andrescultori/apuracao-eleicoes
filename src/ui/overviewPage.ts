@@ -2,6 +2,7 @@ import { OFFICE_ORDER, OFFICES } from '../data/domain';
 import { statusForT } from '../data/mockDataProvider';
 import type { AppContext } from '../state/appContext';
 import { esc, fmtPct } from '../util';
+import { ElectedBadgeCompact } from './electedBadge';
 
 export function OverviewPage(app: AppContext): string {
   const cards = OFFICE_ORDER.map((office) => {
@@ -14,7 +15,7 @@ export function OverviewPage(app: AppContext): string {
       `<button class="overview-card" data-action="go" data-page="${office}">` +
       `<div class="office-name">${cfg.label}${uf ? ' — ' + uf : ' — Brasil'}</div>` +
       (leader
-        ? `<div class="leader-pct num">${fmtPct(leader.percentage)}%</div><div class="leader-name" title="${esc(leader.name)}">${esc(leader.ballotName)}</div>`
+        ? `<div class="leader-pct num">${fmtPct(leader.percentage)}%</div><div class="leader-name" title="${esc(leader.name)}">${esc(leader.ballotName)}${leader.elected ? ' ' + ElectedBadgeCompact() : ''}</div>`
         : '<div class="leader-name">Sem dados</div>') +
       `<div class="office-status">${status.label}</div>` +
       '</button>'

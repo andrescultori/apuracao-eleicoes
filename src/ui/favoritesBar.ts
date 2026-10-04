@@ -21,10 +21,14 @@ export function FavoritesBar(app: AppContext): string {
     .map((r) => {
       const cfg = OFFICES[r.office];
       const scopeLabel = r.uf ?? 'BR';
+      const electedTitle = r.candidate.elected ? ' · Eleito matematicamente (não oficial)' : '';
       return (
         `<button class="fav-chip" data-action="go" data-page="${r.office}" data-uf="${r.uf ?? ''}" data-turn="${r.turn}" ` +
-        `title="${esc(r.candidate.name)} · ${esc(cfg.label)}${r.uf ? ' · ' + r.uf : ''} · ${r.turn}º turno">` +
+        `title="${esc(r.candidate.name)} · ${esc(cfg.label)}${r.uf ? ' · ' + r.uf : ''} · ${r.turn}º turno${electedTitle}">` +
         `${STAR_SM}<span class="fav-chip-name">${esc(r.candidate.ballotName)}</span>` +
+        (r.candidate.elected
+          ? '<span class="fav-chip-elected"><span aria-hidden="true">✓</span><span class="sr-only"> Eleito matematicamente (não oficial)</span></span>'
+          : '') +
         `<span class="fav-chip-meta">${esc(cfg.short)} · ${esc(scopeLabel)}</span>` +
         `<span class="fav-chip-pct num">${fmtPct(r.candidate.percentage)}%</span>` +
         '</button>'

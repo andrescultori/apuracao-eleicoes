@@ -1,7 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import type { CandidateResult, DataProvider, ElectionDataStatus, ProviderResult } from '../data/types';
 import { AppContext } from '../state/appContext';
-import { EvolutionChart } from './charts';
+import { EvolutionChart, VoteChart } from './charts';
+
+// O histórico do gráfico de evolução agora é persistido em localStorage (ver
+// store.ts) — sem limpar entre testes, um `new AppContext()` carregaria o
+// histórico deixado pelo teste anterior (jsdom mantém localStorage entre
+// testes do mesmo arquivo).
+beforeEach(() => {
+  localStorage.clear();
+});
 
 /** `votes` casa com `percentage` sobre uma base de 100 (ver `totalValid: 100` em `sequencedProvider`) — `applyVoteBasis` recalcula o percentual a partir de votes/totalValid, então os dois precisam ser consistentes. */
 function fakeCandidate(id: string, name: string, percentage: number): CandidateResult {
@@ -103,5 +111,29 @@ describe('EvolutionChart — modo TSE', () => {
     app.getOfficeResults('presidente', null, 1);
     app.getOfficeResults('presidente', null, 1);
     expect(app.getResultsHistory('presidente', null, 1)).toHaveLength(1);
+  });
+});
+
+describe('VoteChart — selo de eleito matematicamente', () => {
+  it('mostra o selo compacto no candidato marcado elected:true, e só nele', () => {
+    const app = new AppContext();
+    const elected: CandidateResult = { ...fakeCandidate('a', 'Candidato A', 70), elected: true };
+    const notElected: CandidateResult = fakeCandidate('b', 'Candidato B', 30);
+    const html = VoteChart(app, 'presidente', 1, null, {
+      candidates: [elected, notElected],
+      totalValid: 100,
+      totalApurados: 100,
+    });
+    expect((html.match(/elected-badge-compact/g) ?? []).length).toBe(1);
+  });
+
+  it('não mostra o selo quando ninguém está marcado como eleito', () => {
+    const app = new AppContext();
+    const html = VoteChart(app, 'presidente', 1, null, {
+      candidates: [fakeCandidate('a', 'Candidato A', 70)],
+      totalValid: 100,
+      totalApurados: 100,
+    });
+    expect(html).not.toContain('elected-badge-compact');
   });
 });
