@@ -1,7 +1,7 @@
 import { OFFICES } from '../data/domain';
 import type { AppContext } from '../state/appContext';
 import { AboutPage } from './aboutPage';
-import { DemoBanner, Header } from './header';
+import { FetchErrorBanner, Header } from './header';
 import { FavoritesPage } from './favorites';
 import { FavoritesBar } from './favoritesBar';
 import { Footer } from './footer';
@@ -23,7 +23,7 @@ export function render(app: AppContext, root: HTMLElement): void {
   applyTheme(app.state);
   root.innerHTML =
     Header(app) +
-    DemoBanner(app) +
+    FetchErrorBanner(app) +
     FavoritesBar(app) +
     Nav(app) +
     `<main class="shell"><div id="page-root">${pageContent(app)}</div></main>` +

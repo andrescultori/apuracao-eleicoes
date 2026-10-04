@@ -6,9 +6,9 @@ const THEME_LABELS: Record<ThemeMode, string> = { light: 'Claro', dark: 'Escuro'
 
 const TSE_STATUS_SETTINGS_LABEL: Record<ProviderStatus, string> = {
   ready: 'Conectado ao catálogo do TSE; a assinatura de cada arquivo é verificada antes de exibir dados.',
-  loading: 'Buscando o catálogo de eleições do TSE...',
-  error: 'Não foi possível obter ou verificar o catálogo do TSE agora.',
-  unconfigured: 'Catálogo do TSE ainda não disponível.',
+  loading: 'Buscando e verificando os dados do TSE...',
+  error: 'Não foi possível obter ou verificar os dados do TSE agora. Ver "Sobre os dados".',
+  unconfigured: 'Esta eleição ainda não está disponível no catálogo publicado pelo TSE. Ver "Sobre os dados".',
 };
 
 export function SettingsModal(app: AppContext): string {
@@ -24,8 +24,8 @@ export function SettingsModal(app: AppContext): string {
     `<button aria-pressed="${app.state.dataMode === 'tse'}" data-action="set-datamode" data-value="tse">Dados oficiais (TSE)</button>` +
     '</div>' +
     (app.state.dataMode === 'tse'
-      ? `<div class="row-desc" style="margin-top:7px;">${TSE_STATUS_SETTINGS_LABEL[app.electionDataStatus()]} Ver "Sobre os dados".</div>`
-      : '') +
+      ? `<div class="row-desc" style="margin-top:7px;">${TSE_STATUS_SETTINGS_LABEL[app.electionDataStatus()]}</div>`
+      : '<div class="row-desc" style="margin-top:7px;">Dados fictícios, gerados só para demonstração da interface — não são resultados reais.</div>') +
     '</div>' +
     '<div class="modal-section">' +
     '<div class="label">Aparência</div>' +
