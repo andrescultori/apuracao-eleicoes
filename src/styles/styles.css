@@ -430,6 +430,27 @@ select.ui,
   color: #fff;
   border-color: var(--accent);
 }
+@media (max-width: 640px) {
+  /* No mobile, o botão "Estado" pode cair em qualquer ponto da barra de
+     filtros (que quebra linha) — um painel ancorado a ele (`left: 0` só em
+     relação ao próprio botão, estreito) facilmente estoura a largura da
+     tela. Em vez disso, tira o `.uf-picker` da cadeia de posicionamento
+     (`position: static`) pra `.filters` virar o contêiner de referência, e
+     o painel passa a ocupar a barra inteira, abaixo dela — nunca estoura,
+     não importa onde o botão esteja. */
+  .filters {
+    position: relative;
+  }
+  .uf-picker {
+    position: static;
+  }
+  .uf-panel {
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
+  }
+}
 .search-wrap {
   position: relative;
   min-width: 180px;
@@ -460,6 +481,11 @@ select.ui,
 @media (max-width: 760px) {
   .summary-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .summary-grid {
+    grid-template-columns: 1fr;
   }
 }
 .card {
@@ -940,13 +966,18 @@ table.results tbody tr:hover {
   table.results thead {
     display: none;
   }
-  /* O nome do candidato vem primeiro visualmente, com o resto dos campos
-     (posição, nº, partido, votos, %) abaixo — a ordem no DOM/tabela
-     continua a mesma (Pos. primeiro, como faz sentido numa tabela
-     ordenada), só a ordem visual do card muda via flex + `order`. */
+  /* Agrupa os campos em 3 linhas em vez de 1 por linha — Pos. + Nome juntos
+     primeiro, depois Nº + Partido, depois Votos + % — via flex-wrap com
+     `order` explícito (a ordem no DOM/tabela continua Pos., Candidato, Nº,
+     Partido, Votos, %, como faz sentido numa tabela ordenada; só a ordem
+     visual é controlada aqui). Cada td mantém seu rótulo (::before) e, como
+     ainda é um flex item internamente, o rótulo e o valor ficam lado a lado
+     dentro do espaço que lhe cabe na linha. */
   table.results tr {
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
+    column-gap: 10px;
+    row-gap: 6px;
     border-bottom: 1px solid var(--border);
     padding: 11px 12px;
   }
@@ -955,7 +986,7 @@ table.results tbody tr:hover {
   }
   table.results td {
     border: none;
-    padding: 3px 0;
+    padding: 0;
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
@@ -973,16 +1004,22 @@ table.results tbody tr:hover {
   table.results td.cand-cell::before {
     content: none;
   }
+  /* 1ª linha: posição (largura do próprio conteúdo) + nome (ocupa o resto). */
+  table.results td[data-label='Pos.'] {
+    order: 1;
+    flex: 0 0 auto;
+  }
   /* A célula do candidato não é um par "rótulo: valor" como as outras (por
      isso o ::before acima é removido) — a regra genérica de td acima
      (justify-content: space-between) empurraria a estrela de favorito pra
      esquerda e o nome pra direita, quebrando os dois em linhas separadas
      quando o nome é longo. Aqui eles só precisam fluir juntos, grudados. */
   table.results td.cand-cell {
-    order: -1;
+    order: 2;
+    flex: 1 1 auto;
+    min-width: 0;
     justify-content: flex-start;
     align-items: flex-start;
-    margin-bottom: 4px;
   }
   table.results td.cand-cell .cand-name {
     flex: 1 1 auto;
@@ -991,6 +1028,23 @@ table.results tbody tr:hover {
   }
   table.results td.cand-cell .elected-badge {
     flex-basis: 100%;
+  }
+  /* 2ª linha: nº + partido lado a lado. 3ª linha: votos + % lado a lado. */
+  table.results td[data-label='Nº'] {
+    order: 3;
+    flex: 1 1 calc(50% - 5px);
+  }
+  table.results td[data-label='Partido'] {
+    order: 4;
+    flex: 1 1 calc(50% - 5px);
+  }
+  table.results td[data-label='Votos'] {
+    order: 5;
+    flex: 1 1 calc(50% - 5px);
+  }
+  table.results td[data-label='%'] {
+    order: 6;
+    flex: 1 1 calc(50% - 5px);
   }
   .table-scroll {
     overflow-x: visible;
@@ -1007,6 +1061,14 @@ table.results tbody tr:hover {
   border-radius: 12px;
   padding: 16px;
   box-shadow: var(--shadow);
+  /* Sem isso, o SVG de evolução (min-width: 520px) força este card — um
+     item flex dentro de `.stack` — a crescer além da viewport: um item flex
+     sem overflow declarado tem largura mínima automática igual ao
+     min-content do conteúdo, ignorando o `overflow-x: auto` do
+     `.table-scroll` aninhado. `overflow: hidden` aqui zera essa largura
+     mínima automática (mesma lógica já usada em `.table-card`), deixando o
+     `.table-scroll` interno cuidar do scroll horizontal de verdade. */
+  overflow: hidden;
 }
 
 /* mapa do Brasil (cartograma de grade) */
@@ -1136,6 +1198,32 @@ table.results tbody tr:hover {
 }
 .bar-label.sigla {
   width: 36px;
+}
+
+/* variante empilhada (nome + % numa linha, barra cheia embaixo) — usada só
+   no gráfico de distribuição de votos (ver VoteChart em charts.ts); a lista
+   de seções por UF continua com o layout horizontal original acima. */
+.bar-row.stacked {
+  display: block;
+  margin-bottom: 11px;
+}
+.bar-row.stacked:last-child {
+  margin-bottom: 0;
+}
+.bar-row.stacked .bar-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.bar-row.stacked .bar-label {
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.bar-row.stacked .bar-pct {
+  width: auto;
+  flex: none;
 }
 
 /* mapa + card de urnas apuradas por estado, lado a lado no desktop */
