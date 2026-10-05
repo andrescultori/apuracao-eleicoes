@@ -41,9 +41,18 @@ export interface CandidateResult extends Candidate {
    * `true` quando a vitória já está matematicamente garantida, mesmo no pior
    * caso para os votos que ainda faltam apurar (ver `electionMath.ts`) — não
    * é uma projeção estatística nem uma proclamação oficial. Só calculado no
-   * modo TSE, para Presidente e Governador (ver `appContext.ts`).
+   * modo TSE, para Presidente, Governador e Senador (ver `appContext.ts`).
    */
   elected?: boolean;
+  /**
+   * `true` quando a vaga no 2º turno já está matematicamente garantida (um
+   * dos 2 primeiros colocados, mesmo no pior caso) — só no 1º turno de
+   * Presidente/Governador, e só enquanto ninguém tiver maioria absoluta
+   * garantida ainda (se alguém já tem `elected: true`, a corrida se decide
+   * no 1º turno — não há 2º turno pra confirmar vaga nenhuma). Mesma
+   * ressalva de `elected`: nunca uma projeção, nunca oficial.
+   */
+  confirmedRunoff?: boolean;
 }
 
 export interface ElectionResults {

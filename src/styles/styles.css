@@ -703,7 +703,7 @@ select.ui,
   padding: 0;
 }
 
-/* seção de eleitos (Senador — ver electedSection.ts) */
+/* seções de "Eleitos" e "Confirmados pro 2º turno" (ver electedSection.ts) */
 .elected-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
@@ -718,6 +718,13 @@ select.ui,
   display: flex;
   flex-direction: column;
   gap: 3px;
+}
+/* "Confirmados pro 2º turno" usa azul (--accent) em vez do verde de
+   "Eleitos" (--positive) — avançar de turno não é vencer a eleição, as duas
+   cores precisam ser claramente diferentes. */
+.elected-section.runoff .elected-card {
+  background: var(--accent-soft);
+  border-left-color: var(--accent);
 }
 .elected-card .star-btn {
   align-self: flex-start;
@@ -911,6 +918,14 @@ table.results tbody tr:hover {
   padding: 1px 6px;
   border-radius: 999px;
   white-space: nowrap;
+}
+/* "Confirmado no 2º turno" — azul, nunca o verde de "Eleito" (ver nota em .elected-section.runoff). */
+.elected-badge.runoff {
+  color: var(--accent);
+}
+.elected-badge-compact.runoff {
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 .cand-ballot {
   font-size: 11.5px;

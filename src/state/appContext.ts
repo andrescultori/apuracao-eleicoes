@@ -48,6 +48,23 @@ function applyVoteBasis(results: ElectionResults, basis: VoteBasis): ElectionRes
 }
 
 /**
+ * Compara o último ponto do histórico com o resultado atual — usado por
+ * `recordHistorySnapshot` pra nunca registrar um ponto novo quando nada
+ * realmente mudou (ver nota lá sobre o TSE reemitindo o mesmo arquivo com um
+ * `dg`/`hg` novo numa apuração já encerrada). Tolerância pequena só pra
+ * ruído de ponto flutuante — nunca o bastante pra mascarar uma mudança real
+ * (percentuais do TSE já vêm com várias casas decimais).
+ */
+function percentagesUnchanged(last: ResultsHistoryPoint, results: ElectionResults): boolean {
+  if (last.candidates.length !== results.candidates.length) return false;
+  const lastById = new Map(last.candidates.map((c) => [c.id, c.percentage]));
+  return results.candidates.every((c) => {
+    const prev = lastById.get(c.id);
+    return prev !== undefined && Math.abs(prev - c.percentage) < 1e-9;
+  });
+}
+
+/**
  * Quantas vagas entram no cálculo de certeza matemática pra um cargo/turno —
  * `null` quando o cargo fica de fora (ver `applyElectionCertainty`).
  *
@@ -84,6 +101,14 @@ function seatsForCertainty(office: OfficeKey, turn: Turn): number | null {
  * Deputado Federal/Estadual (proporcional, e falta um dado essencial — o
  * número de vagas por UF — pra calcular com segurança).
  *
+ * No 1º turno de Presidente/Governador, também marca `confirmedRunoff: true`
+ * em quem já tem vaga garantida no 2º turno (um dos 2 primeiros colocados,
+ * mesmo no pior caso restante) — mesma conta usada pro Senado (`seats: 2`,
+ * maioria simples), só que aqui é sobre quem AVANÇA, não quem já venceu.
+ * Only calculado enquanto ninguém tem `elected: true` ainda: se alguém já
+ * tem maioria absoluta garantida, a corrida se decide no 1º turno — não faz
+ * sentido "confirmar" uma vaga de 2º turno que não vai existir.
+ *
  * Só atua quando o arquivo de acompanhamento já trouxe o eleitorado
  * (`electorateTotal`/`electorateAccountedFor` — ver tseDataProvider.ts);
  * sem isso, não há teto real de votos restantes, e ninguém é marcado.
@@ -93,17 +118,36 @@ function applyElectionCertainty(results: ElectionResults, office: OfficeKey, tur
   if (seats === null) return results;
   if (results.electorateTotal === undefined || results.electorateAccountedFor === undefined) return results;
   const maxRemainingVotes = results.electorateTotal - results.electorateAccountedFor;
+  const votes = results.candidates.map((c) => c.votes);
+  const requiresAbsoluteMajority = OFFICES[office].hasRunoff && turn === 1;
+
   const decided = computeMathematicallyDecided({
-    votes: results.candidates.map((c) => c.votes),
+    votes,
     totalValid: results.totalValid,
     maxRemainingVotes,
     seats,
-    requiresAbsoluteMajority: OFFICES[office].hasRunoff && turn === 1,
+    requiresAbsoluteMajority,
   });
-  if (!decided.some(Boolean)) return results;
+
+  let runoffConfirmed: boolean[] | null = null;
+  if (requiresAbsoluteMajority && !decided.some(Boolean)) {
+    runoffConfirmed = computeMathematicallyDecided({
+      votes,
+      totalValid: results.totalValid,
+      maxRemainingVotes,
+      seats: 2,
+      requiresAbsoluteMajority: false,
+    });
+  }
+
+  if (!decided.some(Boolean) && !runoffConfirmed?.some(Boolean)) return results;
   return {
     ...results,
-    candidates: results.candidates.map((c, i) => (decided[i] ? { ...c, elected: true } : c)),
+    candidates: results.candidates.map((c, i) => ({
+      ...c,
+      ...(decided[i] ? { elected: true } : {}),
+      ...(runoffConfirmed?.[i] ? { confirmedRunoff: true } : {}),
+    })),
   };
 }
 
@@ -244,9 +288,17 @@ export class AppContext {
     const list = this.resultsHistory.get(key) ?? [];
     const last = list[list.length - 1];
     // `getOfficeResults` é chamado a cada render, não só quando dados novos
-    // chegam — sem isso, cada render repetiria o último ponto. Além disso,
-    // só registra um ponto novo depois do intervalo mínimo (ver
-    // MIN_HISTORY_INTERVAL_MS) — o primeiro ponto é sempre registrado.
+    // chegam — sem isso, cada render repetiria o último ponto.
+    //
+    // Bug real: com uma apuração já encerrada, o TSE continua reemitindo o
+    // mesmo arquivo de tempos em tempos (mesmo `dg`/`hg` de geração mudando,
+    // ver tseDataProvider.ts) — o número em si nunca muda, só o timestamp.
+    // Confiar só no tempo decorrido (como antes) criava um "gráfico" falso,
+    // de pontos idênticos espaçados no tempo, parecendo evolução onde não
+    // há nenhuma. Por isso o percentual tem que ter mudado de verdade — só
+    // aí o intervalo mínimo (MIN_HISTORY_INTERVAL_MS) entra pra limitar a
+    // densidade de pontos de uma apuração que está, de fato, mudando.
+    if (last && percentagesUnchanged(last, results)) return;
     if (last && fetchedAt - last.fetchedAt < AppContext.MIN_HISTORY_INTERVAL_MS) return;
     list.push({
       fetchedAt,

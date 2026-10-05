@@ -4,7 +4,7 @@ import type { ElectionResults, OfficeKey, Turn } from '../data/types';
 import type { AppContext } from '../state/appContext';
 import { lastUpdateWallClock } from '../state/appContext';
 import { clamp, esc, fmtPct } from '../util';
-import { ElectedBadgeCompact } from './electedBadge';
+import { ElectedBadgeCompact, RunoffBadgeCompact } from './electedBadge';
 
 export function VoteChart(
   app: AppContext,
@@ -23,6 +23,7 @@ export function VoteChart(
         '<div class="bar-top">' +
         `<div class="bar-label" title="${esc(c.name)}">${fav ? '★ ' : ''}${esc(c.ballotName)}</div>` +
         (c.elected ? ElectedBadgeCompact() : '') +
+        (c.confirmedRunoff ? RunoffBadgeCompact() : '') +
         `<div class="bar-pct num">${fmtPct(c.percentage)}%</div>` +
         '</div>' +
         `<div class="bar-track"><div class="bar-fill ${fav ? 'fav' : ''}" style="width:${clamp(c.percentage, 0, 100)}%"></div></div>` +
@@ -140,12 +141,23 @@ export function EvolutionChart(app: AppContext, office: OfficeKey, turn: Turn, u
     const hist = app.getResultsHistory(office, uf, turn);
     if (hist.length < 2) {
       // Diz desde quando (se já há 1 ponto) em vez de só "ainda não" — sem
-      // isso, parece quebrado em vez de só estar esperando o próximo ponto
-      // (no mínimo 1 min depois do primeiro, ver `recordHistorySnapshot`).
+      // isso, parece quebrado em vez de só estar esperando o próximo ponto.
+      // Um 2º ponto só aparece quando o percentual muda de verdade (ver
+      // `recordHistorySnapshot`) — então se o único ponto já é "velho"
+      // (passou tempo suficiente sem nenhuma mudança), é bem mais provável
+      // que a apuração já tenha terminado do que que o próximo ponto esteja
+      // só a "alguns minutos" de distância — nesse caso a mensagem não
+      // promete um retorno que não vai acontecer.
       const first = hist[0];
-      const message = first
-        ? `Acompanhando esta corrida desde ${lastUpdateWallClock(first.fetchedAt)} — ainda só há 1 ponto no histórico. Volte em alguns minutos.`
-        : 'Começando a acompanhar esta corrida agora — volte em alguns minutos para ver a evolução.';
+      const STALE_MS = 30 * 60 * 1000;
+      let message: string;
+      if (!first) {
+        message = 'Começando a acompanhar esta corrida agora — volte em alguns minutos para ver a evolução.';
+      } else if (Date.now() - first.fetchedAt < STALE_MS) {
+        message = `Acompanhando esta corrida desde ${lastUpdateWallClock(first.fetchedAt)} — ainda só há 1 ponto no histórico (sem mudança no resultado desde então). Volte em alguns minutos.`;
+      } else {
+        message = `Resultado registrado às ${lastUpdateWallClock(first.fetchedAt)}, sem nenhuma mudança desde então — é provável que esta apuração já tenha sido concluída, por isso não há evolução pra mostrar.`;
+      }
       return (
         '<div class="chart-card"><div class="section-head" style="margin-bottom:6px;"><h2>Evolução da apuração</h2></div>' +
         `<p class="muted" style="font-size:12.5px;">${message}</p></div>`
