@@ -287,7 +287,16 @@ export function timeAgoLabel(ms: number): string {
   if (s < 5) return 'Atualizado agora';
   if (s < 60) return `Atualizado há ${s}s`;
   const m = Math.floor(s / 60);
-  return `Atualizado há ${m} min`;
+  if (m < 60) return `Atualizado há ${m} min`;
+  // Além de minutos — acontece com `tseLastUpdate` em aboutPage.ts, que
+  // agora usa o horário real de geração do arquivo do TSE (ver
+  // `parseGenerationTimestamp` em tseDataProvider.ts) em vez da hora local:
+  // consultar uma apuração já encerrada (ex.: no dia seguinte) pode
+  // facilmente passar de 1h.
+  const h = Math.floor(m / 60);
+  if (h < 48) return `Atualizado há ${h}h`;
+  const d = Math.floor(h / 24);
+  return `Atualizado há ${d} dias`;
 }
 
 /** Horário (HH:MM) da última atualização real — `app.state.lastUpdate` é atualizado em ambos os modos (mock e TSE). */

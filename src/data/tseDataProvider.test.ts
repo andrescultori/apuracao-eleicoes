@@ -12,6 +12,7 @@ import {
   findElectorado,
   parseEa14Payload,
   parseEa20Payload,
+  parseGenerationTimestamp,
   type Ea20Payload,
 } from './tseDataProvider';
 
@@ -85,6 +86,20 @@ describe('parseEa20Payload', () => {
       'BR',
     );
     expect(results.candidates).toHaveLength(0);
+  });
+});
+
+describe('parseGenerationTimestamp', () => {
+  it('converte "DD/MM/AAAA" + "HH:MM:SS" (horário de Brasília, UTC-3 fixo) pro timestamp correto', () => {
+    const ts = parseGenerationTimestamp('28/09/2026', '15:51:39');
+    expect(ts).not.toBeNull();
+    expect(new Date(ts!).toISOString()).toBe('2026-09-28T18:51:39.000Z');
+  });
+
+  it('devolve null pra formato inesperado, em vez de lançar ou inventar uma data', () => {
+    expect(parseGenerationTimestamp('', '')).toBeNull();
+    expect(parseGenerationTimestamp('2026-09-28', '15:51:39')).toBeNull();
+    expect(parseGenerationTimestamp('28/09/2026', '15:51')).toBeNull();
   });
 });
 
@@ -307,6 +322,38 @@ describe('createTseDataProvider — verificação de assinatura ligada de ponta 
       // Eleitorado (item "br", ver fixture real) também vem do acompanhamento.
       expect(r.data?.electorateTotal).toBe(163079139);
       expect(r.data?.electorateAccountedFor).toBe(163078872);
+    });
+  });
+
+  it('usa a data/hora real de geração do EA20 (dg/hg) como fetchedAt, não o relógio local de quem consulta', async () => {
+    // Bug real: fetchedAt vinha de `Date.now()` (hora de quem está olhando a
+    // tela), não da hora em que o TSE gerou aquele resultado — then o
+    // gráfico de evolução, consultado bem depois da apuração já ter
+    // terminado (ex.: no dia seguinte), mostrava só a janela de "agora" em
+    // vez da linha do tempo real da apuração. ea20.sample.json tem
+    // dg="28/09/2026" hg="15:51:39" — bem diferente de "agora".
+    const ea20Url = presidenteEa20Url();
+    const ea14Url = accompanimentUrl('presidente');
+    const queue = new RequestQueue({
+      fetchImpl: fakeFetch({
+        [OFICIAL_EA11_URL]: await signEdDSA(ea11Sample),
+        [ea20Url]: await signEdDSA(ea20Sample),
+        [ea14Url]: await signEdDSA(ea14Sample),
+      }),
+      intervalMs: 0,
+    });
+    const provider = createTseDataProvider(() => 'oficial', queue);
+
+    const realNow = Date.now();
+    provider.getResults('presidente', null, 1);
+    await vi.waitFor(() => {
+      const r = provider.getResults('presidente', null, 1);
+      expect(r.status).toBe('ready');
+      expect(r.fetchedAt).toBe(parseGenerationTimestamp('28/09/2026', '15:51:39'));
+      // Garante que não é coincidência — o timestamp real do teste rodando
+      // é bem posterior ao da fixture (2026-09-28), então os dois nunca
+      // colidiriam por acaso.
+      expect(r.fetchedAt).toBeLessThan(realNow);
     });
   });
 
