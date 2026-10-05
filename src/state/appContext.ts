@@ -1,5 +1,4 @@
-import { OFFICES, SENADO_SEATS_2026 } from '../data/domain';
-import { computeMathematicallyDecided } from '../data/electionMath';
+import { OFFICES } from '../data/domain';
 import { advanceSim, buildInitialHistory, computeResults, createMockDataProvider } from '../data/mockDataProvider';
 import type { SimState } from '../data/mockDataProvider';
 import { createTseDataProvider } from '../data/tseDataProvider';
@@ -65,90 +64,38 @@ function percentagesUnchanged(last: ResultsHistoryPoint, results: ElectionResult
 }
 
 /**
- * Quantas vagas entram no cálculo de certeza matemática pra um cargo/turno —
- * `null` quando o cargo fica de fora (ver `applyElectionCertainty`).
+ * DESLIGADO (05/10/2026) — nunca marca `elected`/`confirmedRunoff`; devolve
+ * `results` sem alteração. Caso real que forçou isso: Governador/RJ, o app
+ * mostrava Douglas Ruas com 50,88% já marcado "Eleito matematicamente"; o
+ * resultado OFICIAL final ficou em 49,27%, foi pra 2º turno. O "pior caso"
+ * matemático tinha que ser impossível de errar (essa é a proposta inteira
+ * do recurso — nunca uma projeção, só certeza), e errou.
  *
- * Presidente/Governador: sempre 1 vaga (`hasRunoff` — maioria absoluta no 1º
- * turno, simples no 2º). Senador: `SENADO_SEATS_2026` (2, fixo neste ciclo —
- * ver nota em domain.ts), só no 1º turno (Senador não tem 2º turno — já
- * confirmado por `OFFICES.senador.hasRunoff === false`).
+ * O percentual mostrado não era o problema (é só o dado do momento, normal
+ * variar até o fim da apuração) — o problema é o TETO de votos restantes
+ * (`maxRemainingVotes`, usado por `computeMathematicallyDecided` em
+ * electionMath.ts, que continua correta e testada: o defeito é no dado de
+ * entrada, não na conta). Esse teto vinha de `electorateTotal -
+ * electorateAccountedFor`, os campos `e.te`/`e.c`/`e.a` do EA14 —
+ * comparecimento/abstenção "acumulados nas seções já totalizadas", conforme
+ * a doc em tseDataProvider.ts. Essa semântica nunca foi confirmada contra o
+ * ambiente OFICIAL de verdade (só contra uma amostra do ambiente SIMULADO,
+ * em setembro) — e no mundo real, comparecimento (quem já votou) tende a
+ * ficar pronto bem antes da apuração (contagem dos votos) terminar. Se o
+ * campo realmente reflete isso, o teto fica artificialmente pequeno assim
+ * que a votação encerra, mesmo com a contagem ainda longe do fim —
+ * exatamente o padrão observado aqui.
  *
- * Deputado Federal/Estadual ficam de fora — não por serem proporcionais
- * complexos, mas por uma lacuna de dado real: ao contrário de Senador (2
- * vagas fixas por lei), o número de vagas de Deputado varia por UF (depende
- * de população/censo) e NÃO foi confirmado em nenhum arquivo real do TSE
- * observado até agora (nem no catálogo EA11, nem em uma amostra real do
- * EA20 de Deputado — só Presidente foi confirmado ao vivo). Sem esse número
- * por UF, não dá pra calcular quociente eleitoral/partidário com segurança;
- * inventar ou aproximar de memória arriscaria declarar a pessoa errada como
- * eleita, o que é pior que simplesmente não mostrar nada.
+ * Sem acesso ao feed oficial ao vivo pra confirmar e corrigir a conta com
+ * segurança, a postura certa é não declarar ninguém "eleito" ou "confirmado
+ * pro 2º turno" enquanto essa premissa não for reverificada — errar isso é
+ * pior que não mostrar nada (mesmo princípio já usado pra excluir Deputado
+ * Federal/Estadual por falta de um dado confiável). `ElectedSection`,
+ * `RunoffSection` e os selos continuam existindo — simplesmente nunca
+ * disparam, porque nenhum candidato chega com essas flags.
  */
-function seatsForCertainty(office: OfficeKey, turn: Turn): number | null {
-  if (OFFICES[office].hasRunoff) return 1;
-  if (office === 'senador' && turn === 1) return SENADO_SEATS_2026;
-  return null;
-}
-
-/**
- * Marca `elected: true` no(s) candidato(s) cuja vitória já está
- * matematicamente garantida, mesmo com a apuração em andamento — nunca uma
- * projeção estatística, só o pior caso matemático (ver `electionMath.ts`).
- * NÃO é uma proclamação oficial (sempre um ato da Justiça Eleitoral, depois
- * da totalização); a UI rotula isso como "Eleito matematicamente (não
- * oficial)".
- *
- * Escopo (ver `seatsForCertainty`): Presidente, Governador e Senador — nunca
- * Deputado Federal/Estadual (proporcional, e falta um dado essencial — o
- * número de vagas por UF — pra calcular com segurança).
- *
- * No 1º turno de Presidente/Governador, também marca `confirmedRunoff: true`
- * em quem já tem vaga garantida no 2º turno (um dos 2 primeiros colocados,
- * mesmo no pior caso restante) — mesma conta usada pro Senado (`seats: 2`,
- * maioria simples), só que aqui é sobre quem AVANÇA, não quem já venceu.
- * Only calculado enquanto ninguém tem `elected: true` ainda: se alguém já
- * tem maioria absoluta garantida, a corrida se decide no 1º turno — não faz
- * sentido "confirmar" uma vaga de 2º turno que não vai existir.
- *
- * Só atua quando o arquivo de acompanhamento já trouxe o eleitorado
- * (`electorateTotal`/`electorateAccountedFor` — ver tseDataProvider.ts);
- * sem isso, não há teto real de votos restantes, e ninguém é marcado.
- */
-function applyElectionCertainty(results: ElectionResults, office: OfficeKey, turn: Turn): ElectionResults {
-  const seats = seatsForCertainty(office, turn);
-  if (seats === null) return results;
-  if (results.electorateTotal === undefined || results.electorateAccountedFor === undefined) return results;
-  const maxRemainingVotes = results.electorateTotal - results.electorateAccountedFor;
-  const votes = results.candidates.map((c) => c.votes);
-  const requiresAbsoluteMajority = OFFICES[office].hasRunoff && turn === 1;
-
-  const decided = computeMathematicallyDecided({
-    votes,
-    totalValid: results.totalValid,
-    maxRemainingVotes,
-    seats,
-    requiresAbsoluteMajority,
-  });
-
-  let runoffConfirmed: boolean[] | null = null;
-  if (requiresAbsoluteMajority && !decided.some(Boolean)) {
-    runoffConfirmed = computeMathematicallyDecided({
-      votes,
-      totalValid: results.totalValid,
-      maxRemainingVotes,
-      seats: 2,
-      requiresAbsoluteMajority: false,
-    });
-  }
-
-  if (!decided.some(Boolean) && !runoffConfirmed?.some(Boolean)) return results;
-  return {
-    ...results,
-    candidates: results.candidates.map((c, i) => ({
-      ...c,
-      ...(decided[i] ? { elected: true } : {}),
-      ...(runoffConfirmed?.[i] ? { confirmedRunoff: true } : {}),
-    })),
-  };
+function applyElectionCertainty(results: ElectionResults, _office: OfficeKey, _turn: Turn): ElectionResults {
+  return results;
 }
 
 /**
