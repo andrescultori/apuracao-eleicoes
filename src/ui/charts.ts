@@ -19,11 +19,13 @@ export function VoteChart(
     .map((c) => {
       const fav = app.isFav(turn, office, uf, c.id);
       return (
-        '<div class="bar-row">' +
+        '<div class="bar-row stacked">' +
+        '<div class="bar-top">' +
         `<div class="bar-label" title="${esc(c.name)}">${fav ? '★ ' : ''}${esc(c.ballotName)}</div>` +
         (c.elected ? ElectedBadgeCompact() : '') +
-        `<div class="bar-track"><div class="bar-fill ${fav ? 'fav' : ''}" style="width:${clamp(c.percentage, 0, 100)}%"></div></div>` +
         `<div class="bar-pct num">${fmtPct(c.percentage)}%</div>` +
+        '</div>' +
+        `<div class="bar-track"><div class="bar-fill ${fav ? 'fav' : ''}" style="width:${clamp(c.percentage, 0, 100)}%"></div></div>` +
         '</div>'
       );
     })
