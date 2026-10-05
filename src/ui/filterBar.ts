@@ -14,6 +14,23 @@ function nationalScopeTag(app: AppContext, office: OfficeKey): string {
   );
 }
 
+/** Campo "Estado" (gatilho + painel de siglas) — reaproveitado também em `OverviewPage`, fora da barra de filtros de um cargo específico. */
+export function UfPickerField(app: AppContext): string {
+  const open = app.state.ufPickerOpen;
+  const options = UFS.map(
+    (u) =>
+      `<button type="button" class="uf-opt ${app.state.uf === u.sigla ? 'active' : ''}" role="option" ` +
+      `aria-selected="${app.state.uf === u.sigla}" data-action="set-uf" data-value="${u.sigla}" title="${esc(u.nome)}">${u.sigla}</button>`,
+  ).join('');
+  return (
+    '<div class="field uf-picker"><label id="lbl-uf">Estado</label>' +
+    `<button type="button" class="uf-trigger" data-action="toggle-uf-picker" aria-haspopup="listbox" aria-expanded="${open}" aria-labelledby="lbl-uf">` +
+    `<span>${esc(app.state.uf)}</span>${ICONS.chevronDown}</button>` +
+    (open ? `<div class="uf-panel" role="listbox" aria-label="Selecionar estado">${options}</div>` : '') +
+    '</div>'
+  );
+}
+
 export interface FilterBarOpts {
   search?: boolean;
 }
@@ -30,23 +47,9 @@ export function FilterBar(app: AppContext, office: OfficeKey, opts: FilterBarOpt
     `<button aria-pressed="${app.state.turn === 2}" data-action="set-turn" data-value="2">2º Turno</button>` +
     '</div></div>';
 
-  let ufField: string;
-  if (showUf) {
-    const open = app.state.ufPickerOpen;
-    const options = UFS.map(
-      (u) =>
-        `<button type="button" class="uf-opt ${app.state.uf === u.sigla ? 'active' : ''}" role="option" ` +
-        `aria-selected="${app.state.uf === u.sigla}" data-action="set-uf" data-value="${u.sigla}" title="${esc(u.nome)}">${u.sigla}</button>`,
-    ).join('');
-    ufField =
-      '<div class="field uf-picker"><label id="lbl-uf">Estado</label>' +
-      `<button type="button" class="uf-trigger" data-action="toggle-uf-picker" aria-haspopup="listbox" aria-expanded="${open}" aria-labelledby="lbl-uf">` +
-      `<span>${esc(app.state.uf)}</span>${ICONS.chevronDown}</button>` +
-      (open ? `<div class="uf-panel" role="listbox" aria-label="Selecionar estado">${options}</div>` : '') +
-      '</div>';
-  } else {
-    ufField = `<div class="field"><label>Abrangência</label>${nationalScopeTag(app, office)}</div>`;
-  }
+  const ufField = showUf
+    ? UfPickerField(app)
+    : `<div class="field"><label>Abrangência</label>${nationalScopeTag(app, office)}</div>`;
 
   const searchField = showSearch
     ? '<div class="field grow"><label for="cand-search">Pesquisar candidato</label>' +

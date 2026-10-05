@@ -3,6 +3,7 @@ import { statusForT } from '../data/mockDataProvider';
 import type { AppContext } from '../state/appContext';
 import { esc, fmtPct } from '../util';
 import { ElectedBadgeCompact } from './electedBadge';
+import { UfPickerField } from './filterBar';
 
 export function OverviewPage(app: AppContext): string {
   const cards = OFFICE_ORDER.map((office) => {
@@ -24,7 +25,11 @@ export function OverviewPage(app: AppContext): string {
 
   return (
     '<div class="stack">' +
-    `<div class="section-head"><h2>Eleições 2026</h2><span class="muted">1º turno · estado de referência: ${app.state.uf}</span></div>` +
+    '<div class="section-head"><h2>Eleições 2026</h2><span class="muted">1º turno</span></div>' +
+    // Afeta todos os cargos de abrangência estadual aqui embaixo (Governador,
+    // Senador, Dep. Federal/Estadual) — Presidente continua nacional, sem
+    // depender deste estado (ver `officeUfForCurrent` em store.ts).
+    `<div class="filters">${UfPickerField(app)}</div>` +
     `<div class="overview-grid">${cards}</div>` +
     '</div>'
   );

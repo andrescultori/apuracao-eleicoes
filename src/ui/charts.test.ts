@@ -101,6 +101,43 @@ describe('EvolutionChart — modo TSE', () => {
     expect(html).toContain('Candidato A');
   });
 
+  it('o SVG não tem min-width fixo — precisa encolher pra caber na tela, nunca vazar (ver overflow:hidden em .chart-card)', () => {
+    const app = new AppContext();
+    app.state.dataMode = 'tse';
+    const T0 = 1_700_000_000_000;
+    app.tseProvider = sequencedProvider([
+      { fetchedAt: T0, candidates: [fakeCandidate('a', 'Candidato A', 40)] },
+      { fetchedAt: T0 + 60_000, candidates: [fakeCandidate('a', 'Candidato A', 55)] },
+    ]);
+    app.getOfficeResults('presidente', null, 1);
+    app.getOfficeResults('presidente', null, 1);
+    const html = EvolutionChart(app, 'presidente', 1, null);
+    expect(html).not.toContain('min-width');
+  });
+
+  it('limita o eixo X a poucos rótulos mesmo com um histórico bem mais longo (apuração de várias horas)', () => {
+    const app = new AppContext();
+    app.state.dataMode = 'tse';
+    const T0 = 1_700_000_000_000;
+    const ONE_MIN = 60_000;
+    const snapshots = Array.from({ length: 20 }, (_, i) => ({
+      fetchedAt: T0 + i * ONE_MIN,
+      candidates: [fakeCandidate('a', 'Candidato A', 40 + i)],
+    }));
+    app.tseProvider = sequencedProvider(snapshots);
+    for (let i = 0; i < 20; i++) app.getOfficeResults('presidente', null, 1);
+    expect(app.getResultsHistory('presidente', null, 1)).toHaveLength(20);
+
+    const html = EvolutionChart(app, 'presidente', 1, null);
+    // `text-anchor="middle"` só aparece nos rótulos do eixo X (os do eixo Y
+    // usam `text-anchor="end"`) — com 20 pontos, a regra antiga ("pula 1 a
+    // cada 2") ainda mostraria ~10 rótulos; o limite novo (~6) deve segurar
+    // isso não importa quantos pontos o histórico acumule.
+    const xLabelCount = (html.match(/text-anchor="middle"/g) ?? []).length;
+    expect(xLabelCount).toBeLessThanOrEqual(6);
+    expect(xLabelCount).toBeGreaterThanOrEqual(2);
+  });
+
   it('não duplica um ponto do histórico quando getOfficeResults é chamado de novo com o mesmo fetchedAt (um render sem dado novo)', () => {
     const app = new AppContext();
     app.state.dataMode = 'tse';
