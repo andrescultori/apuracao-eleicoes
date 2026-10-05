@@ -20,7 +20,11 @@ function fakeReadyProvider(): DataProvider {
           office: 'presidente',
           finalShare: 0,
           votes: 400,
-          percentage: 999, // valor absurdo de propósito — deve ser sempre recalculado, nunca usado como veio
+          // Deliberadamente diferente de votes/totalValid*100 (50%) — ver
+          // nota em `applyVoteBasis`: na base "válidos" (a padrão), o
+          // percentual que o provedor manda (aqui simulando o `pvapn` real
+          // do TSE) é usado como veio, nunca recalculado.
+          percentage: 51.5,
           position: 1,
         },
       ],
@@ -157,18 +161,23 @@ describe('AppContext.getOfficeResults — "eleito matematicamente"/"confirmado p
 });
 
 describe('AppContext.getOfficeResults — base do percentual (voteBasis) no modo TSE', () => {
-  it('calcula o percentual sobre votos válidos por padrão', () => {
+  it('na base "válidos" (padrão), usa o percentual que já veio do provedor — nunca recalcula de votes/totalValid', () => {
+    // Caso real (05/10/2026): Governador/RJ, o percentual recalculado
+    // (votes/totalValid) divergia do oficial do TSE por um fator idêntico
+    // pros 2 primeiros colocados — sinal de que `totalValid` não batia com
+    // o denominador que o TSE usa de verdade pro `pvapn`. Ver nota em
+    // `applyVoteBasis`.
     const app = new AppContext();
     app.tseProvider = fakeReadyProvider();
     app.state.dataMode = 'tse';
     app.state.voteBasis = 'valid';
 
     const results = app.getOfficeResults('presidente', null, 1);
-    // 400 votos / 800 válidos = 50%, não os 999 (absurdos) que vieram do provedor.
-    expect(results.candidates[0]?.percentage).toBeCloseTo(50, 6);
+    // 51,5% como veio do provedor — não os 50% que 400/800 daria.
+    expect(results.candidates[0]?.percentage).toBeCloseTo(51.5, 6);
   });
 
-  it('recalcula sobre votos totais quando voteBasis é "total"', () => {
+  it('recalcula sobre votos totais quando voteBasis é "total" (não existe um percentual oficial nessa base)', () => {
     const app = new AppContext();
     app.tseProvider = fakeReadyProvider();
     app.state.dataMode = 'tse';
