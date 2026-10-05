@@ -32,13 +32,29 @@ export interface DispatchedResults extends ElectionResults {
 }
 
 /**
- * Recalcula o percentual de cada candidato a partir dos votos brutos, usando
- * `totalValid` (votos válidos) ou `totalApurados` (votos apurados, incluindo
- * brancos/nulos) como base — em vez de confiar no percentual já publicado
- * pelo TSE no arquivo (que vem numa base fixa e não dava pra alternar).
+ * Base "votos totais apurados" (inclui brancos/nulos): recalcula o
+ * percentual de cada candidato a partir dos votos brutos — não existe um
+ * percentual "oficial" do TSE nessa base no arquivo, só sobre votos válidos
+ * (`pvapn`, já vem pronto — ver `parseEa20Payload`), então essa é a única
+ * base que PRECISA de conta própria.
+ *
+ * Base "votos válidos" (a padrão): usa o percentual como veio do provedor,
+ * sem recalcular. ANTES recalculava daqui também (`votes / totalValid *
+ * 100`) — caso real que forçou tirar isso (05/10/2026): Governador/RJ, o app
+ * mostrava 50,88% pro líder; o oficial (TSE) mostrava 49,27%. A proporção
+ * entre os dois percentuais do app batia EXATAMENTE igual pros dois
+ * primeiros colocados (~1,0327x) — assinatura clássica de um denominador
+ * (`totalValid`) proporcionalmente menor que o usado pelo TSE pra calcular
+ * o `pvapn` de verdade, não um bug nos votos de cada candidato (esses
+ * batiam). Sem conseguir confirmar ao vivo por que `totalValid` (campo
+ * `v.vv` do EA20) ficava ~3% menor mesmo com "seções totalizadas" em ~100%,
+ * a saída mais segura é simplesmente não recalcular: `pvapn` já vem do TSE,
+ * assinado e verificado (ver jws.ts) — é o mesmo número do site oficial,
+ * direto na fonte, sem um passo nosso no meio que possa divergir dele.
  */
 function applyVoteBasis(results: ElectionResults, basis: VoteBasis): ElectionResults {
-  const denom = basis === 'total' ? results.totalApurados : results.totalValid;
+  if (basis !== 'total') return results;
+  const denom = results.totalApurados;
   if (!denom) return results;
   return {
     ...results,
