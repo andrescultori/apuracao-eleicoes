@@ -150,7 +150,14 @@ export class AppContext {
   // esperar — 1 min é um meio-termo: o gráfico aparece bem mais rápido, e
   // ainda assim cresce bem além de "minuto a minuto" numa sessão longa.
   private static readonly MIN_HISTORY_INTERVAL_MS = 60 * 1000;
-  private static readonly MAX_HISTORY_POINTS = 180;
+  // Antes 180 (3h a 1 pt/min) — descartava os pontos mais antigos bem antes
+  // do fim da apuração numa eleição que começa às 17h e pode passar de 5h,
+  // fazendo o eixo X do gráfico de evolução "esquecer" o início. 720 (12h a
+  // 1 pt/min) cobre a apuração inteira de uma eleição geral com folga, sem
+  // custo real: cada ponto é só alguns números por candidato, e o eixo X só
+  // mostra um punhado de rótulos (ver thinning em `renderEvolutionSvg`,
+  // independente da quantidade de pontos).
+  private static readonly MAX_HISTORY_POINTS = 720;
 
   constructor() {
     loadPersisted(this.state);

@@ -79,9 +79,16 @@ function renderEvolutionSvg(labels: string[], series: EvolutionSeries[]): string
     gridLines += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--border)" stroke-width="1"/>`;
     gridLines += `<text x="${padL - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="var(--text-3)">${Math.round(val)}%</text>`;
   }
+  // Mostra no máximo ~6 rótulos no eixo X, sempre incluindo o primeiro e o
+  // último, não importa quantos pontos o histórico tenha (pode passar de
+  // centenas numa apuração longa, ver MAX_HISTORY_POINTS) — sem isso,
+  // "pular 1 a cada 2" (a regra antiga) ainda lota o eixo de texto
+  // ilegível quando há muito mais que uns 10-12 pontos.
+  const MAX_X_LABELS = 6;
+  const labelStep = Math.max(1, Math.ceil((labels.length - 1) / (MAX_X_LABELS - 1)));
   const xLabels = labels
     .map((label, i) => {
-      if (labels.length > 6 && i % 2 !== 0 && i !== labels.length - 1) return '';
+      if (i !== 0 && i !== labels.length - 1 && i % labelStep !== 0) return '';
       return `<text x="${xAt(i)}" y="${H - 6}" text-anchor="middle" font-size="10" fill="var(--text-3)">${label}</text>`;
     })
     .join('');
@@ -108,11 +115,18 @@ function renderEvolutionSvg(labels: string[], series: EvolutionSeries[]): string
   return (
     '<div class="chart-card">' +
     '<div class="section-head" style="margin-bottom:6px;"><h2>Evolução da apuração</h2><span class="muted">percentual de votos ao longo da contagem</span></div>' +
-    `<div class="table-scroll"><svg class="chart-svg" viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;min-width:520px;" role="img" aria-label="Gráfico de evolução do percentual de votos por candidato ao longo do tempo">` +
+    // `viewBox` já deixa o SVG fluido (escala pra caber em `width: 100%`);
+    // um `min-width` fixo aqui forçava um scroll horizontal interno — que,
+    // combinado com o `overflow: hidden` do `.chart-card` (ver nota lá),
+    // cortava a parte do gráfico fora da área visível em vez de mostrar
+    // tudo encolhido. Sem `min-width`, o gráfico inteiro sempre cabe,
+    // só fica menor em telas estreitas (mesma lógica de qualquer SVG
+    // responsivo com viewBox).
+    `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;" role="img" aria-label="Gráfico de evolução do percentual de votos por candidato ao longo do tempo">` +
     gridLines +
     xLabels +
     lines +
-    '</svg></div>' +
+    '</svg>' +
     `<div class="legend">${legend}</div>` +
     '</div>'
   );
