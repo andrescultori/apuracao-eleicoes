@@ -5,6 +5,7 @@ import type { AppContext } from '../state/appContext';
 import { BrazilMap, supportsMap } from './brazilMap';
 import { CandidateTable } from './candidateTable';
 import { EvolutionChart, VoteChart } from './charts';
+import { ElectedSection } from './electedSection';
 import { FavoritesSection } from './favorites';
 import { FilterBar } from './filterBar';
 import { SectionsByStateCard } from './sectionsByState';
@@ -68,6 +69,7 @@ export function OfficePage(app: AppContext, office: OfficeKey): string {
   return (
     '<div class="stack">' +
     FilterBar(app, office) +
+    ElectedSection(app, office, app.state.turn, uf, results) +
     SummaryCards(results, sectionsPercent) +
     UpdateRow(app) +
     FavoritesSection(app, office, app.state.turn, uf, results) +

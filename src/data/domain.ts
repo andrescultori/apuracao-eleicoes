@@ -120,6 +120,23 @@ export const OFFICES: Record<OfficeKey, OfficeConfig> = {
 
 export const OFFICE_ORDER: OfficeKey[] = ['presidente', 'governador', 'senador', 'deputadoFederal', 'deputadoEstadual'];
 
+/**
+ * Vagas de Senador em disputa neste ciclo — 2 por UF, uniforme no Brasil
+ * inteiro. [DOC — regra constitucional, não vem de nenhum arquivo do TSE
+ * confirmado ao vivo: o catálogo EA11 não lista número de vagas por cargo
+ * (ver `Ea11Cargo` em ea11.ts)]: mandatos de Senador são de 8 anos, com
+ * renovação alternada de 1/3 e 2/3 das cadeiras a cada eleição (a cada 4
+ * anos) — 1994, 2002, 2010, 2018 e 2026 são todos anos de renovação de 2/3
+ * (2 cadeiras por estado); os anos intermediários (1998, 2006, 2014, 2022)
+ * renovam 1/3 (1 cadeira). Essa regra não muda de uma eleição pra outra
+ * (diferente do número de vagas de Deputado Federal/Estadual, que depende
+ * de população/censo e varia por UF — por isso só Senador tem esse número
+ * fixo o bastante pra declarar eleitos com segurança; ver nota em
+ * `applyElectionCertainty` em appContext.ts sobre por que Deputados ficam
+ * de fora).
+ */
+export const SENADO_SEATS_2026 = 2;
+
 export const TURNOUT = 0.8;
 
 export const VALID_RATIO: Record<OfficeKey, number> = {

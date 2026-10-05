@@ -54,13 +54,29 @@ function sequencedProvider(snapshots: { fetchedAt: number; candidates: Candidate
 }
 
 describe('EvolutionChart — modo TSE', () => {
-  it('mostra aviso de histórico insuficiente com menos de 2 pontos', () => {
+  it('mostra aviso de histórico insuficiente com menos de 2 pontos, dizendo desde quando acompanha', () => {
     const app = new AppContext();
     app.state.dataMode = 'tse';
     app.tseProvider = sequencedProvider([{ fetchedAt: 1000, candidates: [fakeCandidate('a', 'Candidato A', 50)] }]);
     app.getOfficeResults('presidente', null, 1); // 1º ponto registrado
     const html = EvolutionChart(app, 'presidente', 1, null);
-    expect(html).toContain('Ainda não há pontos suficientes');
+    expect(html).toContain('Acompanhando esta corrida desde');
+    expect(html).not.toContain('<svg');
+  });
+
+  it('mostra aviso genérico quando ainda não há nenhum ponto registrado', () => {
+    const app = new AppContext();
+    app.state.dataMode = 'tse';
+    // Provedor "loading" (sem dado ainda) — getOfficeResults nunca chega a
+    // registrar um ponto de histórico nesse caso.
+    app.tseProvider = {
+      getElectionData: (): ElectionDataStatus => ({ status: 'ready' }),
+      getResults: (): ProviderResult => ({ status: 'loading', data: null, fetchedAt: null }),
+      getCandidates: (): ProviderResult => ({ status: 'loading', data: null, fetchedAt: null }),
+      getLastUpdate: () => null,
+    };
+    const html = EvolutionChart(app, 'presidente', 1, null);
+    expect(html).toContain('Começando a acompanhar esta corrida agora');
     expect(html).not.toContain('<svg');
   });
 
@@ -96,21 +112,53 @@ describe('EvolutionChart — modo TSE', () => {
     expect(app.getResultsHistory('presidente', null, 1)).toHaveLength(1);
   });
 
-  it('não registra um ponto novo antes do intervalo mínimo (5 min) — eixo X largo em vez de minuto a minuto', () => {
+  it('não registra um ponto novo antes do intervalo mínimo (1 min) — eixo X mais largo que minuto a minuto', () => {
     const app = new AppContext();
     app.state.dataMode = 'tse';
     const T0 = 1_700_000_000_000; // timestamp realista (Date.now() nunca é 0)
     app.tseProvider = sequencedProvider([
       { fetchedAt: T0, candidates: [fakeCandidate('a', 'Candidato A', 40)] },
-      // Autoatualização de 30s (o mínimo configurável) chegando com dado
-      // novo bem antes dos 5 min — não deveria virar um ponto novo.
-      { fetchedAt: T0 + 30_000, candidates: [fakeCandidate('a', 'Candidato A', 41)] },
-      { fetchedAt: T0 + 60_000, candidates: [fakeCandidate('a', 'Candidato A', 42)] },
+      // Autoatualização de 10s (o mínimo configurável) chegando com dado
+      // novo bem antes do intervalo mínimo — não deveria virar um ponto novo.
+      { fetchedAt: T0 + 10_000, candidates: [fakeCandidate('a', 'Candidato A', 41)] },
+      { fetchedAt: T0 + 30_000, candidates: [fakeCandidate('a', 'Candidato A', 42)] },
     ]);
     app.getOfficeResults('presidente', null, 1);
     app.getOfficeResults('presidente', null, 1);
     app.getOfficeResults('presidente', null, 1);
     expect(app.getResultsHistory('presidente', null, 1)).toHaveLength(1);
+  });
+
+  it('o histórico sobrevive a um "recarregamento de página" (um novo AppContext lendo o localStorage do anterior)', () => {
+    const T0 = 1_700_000_000_000;
+    const FIVE_MIN = 5 * 60 * 1000;
+
+    // "Sessão 1": primeira visita, só o 1º ponto é registrado.
+    const app1 = new AppContext();
+    app1.state.dataMode = 'tse';
+    app1.tseProvider = sequencedProvider([{ fetchedAt: T0, candidates: [fakeCandidate('a', 'Candidato A', 40)] }]);
+    app1.getOfficeResults('presidente', null, 1);
+    expect(app1.getResultsHistory('presidente', null, 1)).toHaveLength(1);
+
+    // "Recarrega a página" 5+ min depois: um AppContext NOVO (simulando main.ts
+    // rodando de novo) deve enxergar o ponto da sessão anterior, carregado do
+    // localStorage, e registrar o 2º ponto normalmente.
+    const app2 = new AppContext();
+    app2.state.dataMode = 'tse';
+    app2.tseProvider = sequencedProvider([
+      { fetchedAt: T0 + FIVE_MIN, candidates: [fakeCandidate('a', 'Candidato A', 55)] },
+    ]);
+    const historyBeforeNewFetch = app2.getResultsHistory('presidente', null, 1);
+    expect(historyBeforeNewFetch).toHaveLength(1); // herdado da sessão 1, não perdido no "reload"
+
+    app2.getOfficeResults('presidente', null, 1);
+    const history = app2.getResultsHistory('presidente', null, 1);
+    expect(history).toHaveLength(2);
+    expect(history[0]?.candidates[0]?.percentage).toBeCloseTo(40);
+    expect(history[1]?.candidates[0]?.percentage).toBeCloseTo(55);
+
+    const html = EvolutionChart(app2, 'presidente', 1, null);
+    expect(html).toContain('<svg');
   });
 });
 

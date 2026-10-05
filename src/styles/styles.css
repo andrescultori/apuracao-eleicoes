@@ -677,6 +677,39 @@ select.ui,
   padding: 0;
 }
 
+/* seção de eleitos (Senador — ver electedSection.ts) */
+.elected-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+}
+.elected-card {
+  background: var(--positive-soft);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--positive);
+  border-radius: 10px;
+  padding: 11px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.elected-card .star-btn {
+  align-self: flex-start;
+}
+.elected-card-name {
+  font-weight: 700;
+  font-size: 13.5px;
+}
+.elected-card-meta {
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+.elected-card-stats {
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-top: 3px;
+}
+
 /* favorites bar (topo da página, acima do menu) */
 .fav-bar-wrap {
   background: var(--favorite-soft);
