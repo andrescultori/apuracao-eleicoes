@@ -91,6 +91,29 @@ function parsePtDecimal(s: string): number {
 }
 
 /**
+ * `dg`/`hg` (data/hora de geração) do EA20 são o horário real em que o TSE
+ * gerou aquele arquivo de resultado — "quando a apuração registrou este
+ * número" — bem diferente de "quando o navegador consultou o TSE", que pode
+ * ser dias depois (ex.: consultando hoje um resultado cuja apuração já
+ * terminou ontem). Usado como `fetchedAt` no lugar de `Date.now()` (ver
+ * `refreshInBackground`), pra o gráfico de evolução sempre mostrar a linha
+ * do tempo real da apuração, nunca a hora de quem está olhando. Formato
+ * sempre "DD/MM/AAAA" + "HH:MM:SS", no horário de Brasília (UTC-3 fixo — o
+ * Brasil aboliu o horário de verão em 2019). `null` se vier num formato
+ * inesperado — quem chama cai de volta pro timestamp local nesse caso, nunca
+ * trava a atualização por causa disso.
+ */
+export function parseGenerationTimestamp(dg: string, hg: string): number | null {
+  const dateMatch = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(dg);
+  const timeMatch = /^(\d{2}):(\d{2}):(\d{2})$/.exec(hg);
+  if (!dateMatch || !timeMatch) return null;
+  const [, dd, mm, yyyy] = dateMatch;
+  const [, hh, min, ss] = timeMatch;
+  const ts = new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}-03:00`).getTime();
+  return Number.isNaN(ts) ? null : ts;
+}
+
+/**
  * Converte o payload (já verificado — ver jws.ts) do EA20 para o modelo
  * interno da aplicação. Função pura, testável com fixtures.
  */
@@ -576,12 +599,13 @@ export function createTseDataProvider(
           return;
         }
         try {
-          entry.data = parseEa20Payload(res.payload as Ea20Payload, office, uf ?? 'BR');
+          const payload = res.payload as Ea20Payload;
+          entry.data = parseEa20Payload(payload, office, uf ?? 'BR');
           if (accompaniment.payload) {
             entry.data = mergeAccompaniment(entry.data, accompaniment.payload, uf);
           }
           entry.status = 'ready';
-          entry.fetchedAt = Date.now();
+          entry.fetchedAt = parseGenerationTimestamp(payload.dg, payload.hg) ?? Date.now();
         } catch {
           if (!entry.data) entry.status = 'error';
         }
