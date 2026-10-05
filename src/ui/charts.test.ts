@@ -118,6 +118,38 @@ describe('EvolutionChart — modo TSE', () => {
     expect(html).toContain('Candidato A');
   });
 
+  it('posiciona os pontos no eixo X proporcionalmente ao tempo real decorrido, não por índice — um intervalo de 10h não pode parecer igual a um de 1min', () => {
+    const app = new AppContext();
+    app.state.dataMode = 'tse';
+    const T0 = 1_700_000_000_000;
+    const ONE_MIN = 60_000;
+    const TEN_HOURS = 10 * 60 * 60 * 1000;
+    // 3 pontos: os 2 primeiros a 1min de distância, o 3º a 10h do 2º — no
+    // eixo X por tempo real, os 2 primeiros devem ficar quase colados perto
+    // da borda esquerda, bem longe do 3º (não "a um terço do caminho" cada,
+    // como ficaria se fosse só por índice).
+    app.tseProvider = sequencedProvider([
+      { fetchedAt: T0, candidates: [fakeCandidate('a', 'Candidato A', 40)] },
+      { fetchedAt: T0 + ONE_MIN, candidates: [fakeCandidate('a', 'Candidato A', 41)] },
+      { fetchedAt: T0 + ONE_MIN + TEN_HOURS, candidates: [fakeCandidate('a', 'Candidato A', 55)] },
+    ]);
+    app.getOfficeResults('presidente', null, 1);
+    app.getOfficeResults('presidente', null, 1);
+    app.getOfficeResults('presidente', null, 1);
+
+    const html = EvolutionChart(app, 'presidente', 1, null);
+    const pathMatch = /<path d="M([\d.]+),[\d.]+ L([\d.]+),[\d.]+ L([\d.]+),[\d.]+"/.exec(html);
+    expect(pathMatch).not.toBeNull();
+    const [, x1, x2, x3] = pathMatch!.map(Number);
+    // Gap 1→2 (1min, de um total de ~10h01min) deve ser uma fração ínfima
+    // do gap 2→3 (10h) — bem menor que um terço do espaço total (o que
+    // daria um espaçamento por índice, não por tempo).
+    const gap12 = x2! - x1!;
+    const gap23 = x3! - x2!;
+    expect(gap12).toBeGreaterThanOrEqual(0);
+    expect(gap12 / gap23).toBeLessThan(0.05);
+  });
+
   it('o SVG não tem min-width fixo — precisa encolher pra caber na tela, nunca vazar (ver overflow:hidden em .chart-card)', () => {
     const app = new AppContext();
     app.state.dataMode = 'tse';

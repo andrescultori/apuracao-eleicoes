@@ -136,12 +136,39 @@ export function persistFavorites(state: AppState): void {
  * `AppContext` e se perdia a cada recarregamento de página — o gráfico quase
  * nunca acumulava os 2 pontos mínimos antes do usuário navegar ou recarregar,
  * mostrando sempre "ainda não há pontos suficientes".
+ *
+ * `HISTORY_SCHEMA_VERSION` existe porque cada ponto guarda um `percentage`
+ * já calculado NA HORA — não os votos brutos — então uma correção na CONTA
+ * do percentual (ex.: 05/10/2026, parar de recalcular por cima do `pvapn`
+ * do TSE — ver `applyVoteBasis` em appContext.ts) não corrige os pontos já
+ * salvos, só os novos. Um usuário que já vinha acumulando pontos errados
+ * (via tentativas anteriores, incluindo o espaçamento só por tempo decorrido
+ * antes do filtro de "sem mudança real") ficava com um gráfico "reto" sem
+ * sentido, misturando pontos velhos (errados) com novos (corretos). Subir
+ * essa versão descarta qualquer histórico salvo com uma versão diferente —
+ * todo mundo recomeça do zero, só com pontos calculados pela conta atual.
  */
+const HISTORY_SCHEMA_VERSION = 2;
+
+interface StoredHistory {
+  v: number;
+  data: Record<string, ResultsHistoryPoint[]>;
+}
+
 export function loadResultsHistory(): Record<string, ResultsHistoryPoint[]> {
   try {
     const raw = localStorage.getItem(HISTORY_KEY);
     if (!raw) return {};
-    return JSON.parse(raw) as Record<string, ResultsHistoryPoint[]>;
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      !('v' in parsed) ||
+      (parsed as { v: unknown }).v !== HISTORY_SCHEMA_VERSION
+    ) {
+      return {};
+    }
+    return (parsed as StoredHistory).data;
   } catch {
     return {};
   }
@@ -149,7 +176,8 @@ export function loadResultsHistory(): Record<string, ResultsHistoryPoint[]> {
 
 export function persistResultsHistory(history: Record<string, ResultsHistoryPoint[]>): void {
   try {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    const stored: StoredHistory = { v: HISTORY_SCHEMA_VERSION, data: history };
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(stored));
   } catch {
     // localStorage indisponível — histórico não sobrevive a um recarregamento nesta sessão
   }

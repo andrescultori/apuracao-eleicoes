@@ -46,8 +46,18 @@ interface EvolutionSeries {
  * Desenha o SVG do gráfico de evolução a partir de séries já resolvidas
  * (um percentual por rótulo de tempo) — compartilhado pelos dois modos
  * (demonstração e TSE), que só diferem em de onde vêm `labels`/`series`.
+ *
+ * `timestamps` (ms) posiciona cada ponto no eixo X proporcionalmente ao
+ * tempo real decorrido, não por índice — essencial no modo TSE, onde o
+ * intervalo entre pontos É o próprio dado (pode ser de 1 minuto ou de 11
+ * horas, se a apuração ficou parada — ver `recordHistorySnapshot`). Por
+ * índice, um intervalo de 11h ficava visualmente idêntico a um de 1min,
+ * fazendo qualquer evolução real parecer "esticada" ou "achatada" sem
+ * relação com o tempo de verdade. No modo demonstração os pontos já são
+ * uniformemente espaçados por construção (cada "tick" = 15min simulados),
+ * então o índice já funciona como proxy de tempo — ver chamada abaixo.
  */
-function renderEvolutionSvg(labels: string[], series: EvolutionSeries[]): string {
+function renderEvolutionSvg(labels: string[], timestamps: number[], series: EvolutionSeries[]): string {
   const W = 640;
   const H = 220;
   const padL = 34;
@@ -65,8 +75,14 @@ function renderEvolutionSvg(labels: string[], series: EvolutionSeries[]): string
   );
   maxV = Math.ceil((maxV + 6) / 10) * 10;
 
+  const minT = timestamps[0] ?? 0;
+  const maxT = timestamps[timestamps.length - 1] ?? 0;
+  const span = maxT - minT;
   function xAt(i: number): number {
-    return padL + (labels.length <= 1 ? 0 : (i / (labels.length - 1)) * innerW);
+    if (timestamps.length <= 1 || span <= 0) {
+      return padL + (labels.length <= 1 ? 0 : (i / (labels.length - 1)) * innerW);
+    }
+    return padL + ((timestamps[i]! - minT) / span) * innerW;
   }
   function yAt(v: number): number {
     return padT + innerH - (v / maxV) * innerH;
@@ -169,12 +185,13 @@ export function EvolutionChart(app: AppContext, office: OfficeKey, turn: Turn, u
       .sort((a, b) => b.percentage - a.percentage)
       .slice(0, Math.min(4, latest.candidates.length));
     const labels = hist.map((h) => lastUpdateWallClock(h.fetchedAt));
+    const timestamps = hist.map((h) => h.fetchedAt);
     const series: EvolutionSeries[] = top.map((cand, ci) => ({
       name: cand.ballotName,
       color: PALETTE[ci % PALETTE.length]!,
       pts: hist.map((h) => h.candidates.find((c) => c.id === cand.id)?.percentage ?? 0),
     }));
-    return renderEvolutionSvg(labels, series);
+    return renderEvolutionSvg(labels, timestamps, series);
   }
 
   const candidates = generateCandidateList(office, uf, turn);
@@ -186,6 +203,10 @@ export function EvolutionChart(app: AppContext, office: OfficeKey, turn: Turn, u
 
   const hist = app.sim.history;
   const labels = hist.map((h) => h.label);
+  // `tick` já é uniformemente espaçado no tempo simulado (cada tick = 15min
+  // simulados, ver `buildInitialHistory`/`advanceSim`) — serve como proxy
+  // direto de tempo real sem precisar de um timestamp de verdade aqui.
+  const timestamps = hist.map((h) => h.tick);
   const series: EvolutionSeries[] = top.map((cand, ci) => ({
     name: cand.ballotName,
     color: PALETTE[ci % PALETTE.length]!,
@@ -195,5 +216,5 @@ export function EvolutionChart(app: AppContext, office: OfficeKey, turn: Turn, u
       return found ? found.percentage : 0;
     }),
   }));
-  return renderEvolutionSvg(labels, series);
+  return renderEvolutionSvg(labels, timestamps, series);
 }
