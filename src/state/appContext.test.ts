@@ -105,16 +105,58 @@ describe('AppContext.getOfficeResults — "eleito matematicamente" (applyElectio
     expect(results.candidates.every((c) => !c.elected)).toBe(true);
   });
 
-  it('nunca marca ninguém para Senador, mesmo com margem matematicamente suficiente (fora de escopo)', () => {
+  it('Senador: marca os 2 primeiros colocados (2 vagas em disputa) quando a margem é suficiente para ambos', () => {
     const app = new AppContext();
+    // 3 candidatos, 2 vagas: 50/30/5, 5 restantes no pior caso — mesmo que
+    // os 5 restantes fossem todos do 3º colocado (5+5=10), ele não
+    // alcançaria nem o 2º colocado (30).
     app.tseProvider = fakeTseProviderFor(
       'senador',
+      [
+        fakeCandidate({ id: '1', votes: 50, position: 1 }),
+        fakeCandidate({ id: '2', votes: 30, position: 2 }),
+        fakeCandidate({ id: '3', votes: 5, position: 3 }),
+      ],
+      { electorateTotal: 90, electorateAccountedFor: 85, totalValid: 85 },
+    );
+    app.state.dataMode = 'tse';
+
+    const results = app.getOfficeResults('senador', 'SP', 1);
+    expect(results.candidates.find((c) => c.id === '1')?.elected).toBe(true);
+    expect(results.candidates.find((c) => c.id === '2')?.elected).toBe(true);
+    expect(results.candidates.find((c) => c.id === '3')?.elected).toBeUndefined();
+  });
+
+  it('Senador: não marca o 2º colocado quando o 3º ainda pode empatar com ele no pior caso', () => {
+    const app = new AppContext();
+    // 50/30/20, 10 restantes: no pior caso o 3º chegaria a 30 (empate com o
+    // 2º) — a vitória do 2º lugar não está garantida ainda.
+    app.tseProvider = fakeTseProviderFor(
+      'senador',
+      [
+        fakeCandidate({ id: '1', votes: 50, position: 1 }),
+        fakeCandidate({ id: '2', votes: 30, position: 2 }),
+        fakeCandidate({ id: '3', votes: 20, position: 3 }),
+      ],
+      { electorateTotal: 110, electorateAccountedFor: 100, totalValid: 100 },
+    );
+    app.state.dataMode = 'tse';
+
+    const results = app.getOfficeResults('senador', 'SP', 1);
+    expect(results.candidates.find((c) => c.id === '1')?.elected).toBe(true);
+    expect(results.candidates.find((c) => c.id === '2')?.elected).toBeUndefined();
+  });
+
+  it('Deputado Federal (proporcional, falta o nº de vagas por UF): nunca marca ninguém, mesmo com margem suficiente', () => {
+    const app = new AppContext();
+    app.tseProvider = fakeTseProviderFor(
+      'deputadoFederal',
       [fakeCandidate({ id: '1', votes: 90, position: 1 }), fakeCandidate({ id: '2', votes: 10, position: 2 })],
       { electorateTotal: 100, electorateAccountedFor: 100, totalValid: 100 },
     );
     app.state.dataMode = 'tse';
 
-    const results = app.getOfficeResults('senador', 'SP', 1);
+    const results = app.getOfficeResults('deputadoFederal', 'SP', 1);
     expect(results.candidates.every((c) => !c.elected)).toBe(true);
   });
 

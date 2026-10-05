@@ -1,4 +1,4 @@
-import { OFFICES } from '../data/domain';
+import { OFFICES, SENADO_SEATS_2026 } from '../data/domain';
 import { computeMathematicallyDecided } from '../data/electionMath';
 import { advanceSim, buildInitialHistory, computeResults, createMockDataProvider } from '../data/mockDataProvider';
 import type { SimState } from '../data/mockDataProvider';
@@ -48,6 +48,31 @@ function applyVoteBasis(results: ElectionResults, basis: VoteBasis): ElectionRes
 }
 
 /**
+ * Quantas vagas entram no cálculo de certeza matemática pra um cargo/turno —
+ * `null` quando o cargo fica de fora (ver `applyElectionCertainty`).
+ *
+ * Presidente/Governador: sempre 1 vaga (`hasRunoff` — maioria absoluta no 1º
+ * turno, simples no 2º). Senador: `SENADO_SEATS_2026` (2, fixo neste ciclo —
+ * ver nota em domain.ts), só no 1º turno (Senador não tem 2º turno — já
+ * confirmado por `OFFICES.senador.hasRunoff === false`).
+ *
+ * Deputado Federal/Estadual ficam de fora — não por serem proporcionais
+ * complexos, mas por uma lacuna de dado real: ao contrário de Senador (2
+ * vagas fixas por lei), o número de vagas de Deputado varia por UF (depende
+ * de população/censo) e NÃO foi confirmado em nenhum arquivo real do TSE
+ * observado até agora (nem no catálogo EA11, nem em uma amostra real do
+ * EA20 de Deputado — só Presidente foi confirmado ao vivo). Sem esse número
+ * por UF, não dá pra calcular quociente eleitoral/partidário com segurança;
+ * inventar ou aproximar de memória arriscaria declarar a pessoa errada como
+ * eleita, o que é pior que simplesmente não mostrar nada.
+ */
+function seatsForCertainty(office: OfficeKey, turn: Turn): number | null {
+  if (OFFICES[office].hasRunoff) return 1;
+  if (office === 'senador' && turn === 1) return SENADO_SEATS_2026;
+  return null;
+}
+
+/**
  * Marca `elected: true` no(s) candidato(s) cuja vitória já está
  * matematicamente garantida, mesmo com a apuração em andamento — nunca uma
  * projeção estatística, só o pior caso matemático (ver `electionMath.ts`).
@@ -55,30 +80,25 @@ function applyVoteBasis(results: ElectionResults, basis: VoteBasis): ElectionRes
  * da totalização); a UI rotula isso como "Eleito matematicamente (não
  * oficial)".
  *
- * Escopo deliberadamente restrito a Presidente e Governador (`hasRunoff`):
- * são sempre 1 vaga, e o 1º turno tem uma regra clara de maioria absoluta.
- * Senador fica de fora por ora — o número de vagas em disputa varia (o
- * Senado se renova por 1/3 ou 2/3 dependendo do ano) e isso ainda não foi
- * confirmado nos dados reais. Deputado Federal/Estadual nunca entram aqui:
- * são eleitos pelo sistema proporcional (quociente eleitoral/partidário),
- * que depende do total de votos de todos os partidos/coligações — um
- * cálculo muito mais complexo que o de uma corrida majoritária, fora de
- * escopo.
+ * Escopo (ver `seatsForCertainty`): Presidente, Governador e Senador — nunca
+ * Deputado Federal/Estadual (proporcional, e falta um dado essencial — o
+ * número de vagas por UF — pra calcular com segurança).
  *
  * Só atua quando o arquivo de acompanhamento já trouxe o eleitorado
  * (`electorateTotal`/`electorateAccountedFor` — ver tseDataProvider.ts);
  * sem isso, não há teto real de votos restantes, e ninguém é marcado.
  */
 function applyElectionCertainty(results: ElectionResults, office: OfficeKey, turn: Turn): ElectionResults {
-  if (!OFFICES[office].hasRunoff) return results;
+  const seats = seatsForCertainty(office, turn);
+  if (seats === null) return results;
   if (results.electorateTotal === undefined || results.electorateAccountedFor === undefined) return results;
   const maxRemainingVotes = results.electorateTotal - results.electorateAccountedFor;
   const decided = computeMathematicallyDecided({
     votes: results.candidates.map((c) => c.votes),
     totalValid: results.totalValid,
     maxRemainingVotes,
-    seats: 1,
-    requiresAbsoluteMajority: turn === 1,
+    seats,
+    requiresAbsoluteMajority: OFFICES[office].hasRunoff && turn === 1,
   });
   if (!decided.some(Boolean)) return results;
   return {
