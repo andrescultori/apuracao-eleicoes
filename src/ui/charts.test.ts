@@ -54,13 +54,30 @@ function sequencedProvider(snapshots: { fetchedAt: number; candidates: Candidate
 }
 
 describe('EvolutionChart — modo TSE', () => {
-  it('mostra aviso de histórico insuficiente com menos de 2 pontos, dizendo desde quando acompanha', () => {
+  it('mostra aviso de histórico insuficiente com menos de 2 pontos, dizendo desde quando acompanha (ponto recente)', () => {
     const app = new AppContext();
     app.state.dataMode = 'tse';
-    app.tseProvider = sequencedProvider([{ fetchedAt: 1000, candidates: [fakeCandidate('a', 'Candidato A', 50)] }]);
+    const recentFetchedAt = Date.now() - 5000; // há poucos segundos, não "parado"
+    app.tseProvider = sequencedProvider([
+      { fetchedAt: recentFetchedAt, candidates: [fakeCandidate('a', 'Candidato A', 50)] },
+    ]);
     app.getOfficeResults('presidente', null, 1); // 1º ponto registrado
     const html = EvolutionChart(app, 'presidente', 1, null);
     expect(html).toContain('Acompanhando esta corrida desde');
+    expect(html).not.toContain('<svg');
+  });
+
+  it('com um único ponto antigo (sem mudança há mais de 30 min), avisa que a apuração provavelmente já terminou, em vez de prometer um retorno que não vai acontecer', () => {
+    const app = new AppContext();
+    app.state.dataMode = 'tse';
+    const oldFetchedAt = Date.now() - 2 * 60 * 60 * 1000; // 2h atrás
+    app.tseProvider = sequencedProvider([
+      { fetchedAt: oldFetchedAt, candidates: [fakeCandidate('a', 'Candidato A', 50)] },
+    ]);
+    app.getOfficeResults('presidente', null, 1);
+    const html = EvolutionChart(app, 'presidente', 1, null);
+    expect(html).toContain('provável que esta apuração já tenha sido concluída');
+    expect(html).not.toContain('Volte em alguns minutos');
     expect(html).not.toContain('<svg');
   });
 
@@ -147,6 +164,42 @@ describe('EvolutionChart — modo TSE', () => {
     app.getOfficeResults('presidente', null, 1);
     app.getOfficeResults('presidente', null, 1);
     expect(app.getResultsHistory('presidente', null, 1)).toHaveLength(1);
+  });
+
+  it('não registra um ponto novo quando o TSE reemite o mesmo resultado (percentuais idênticos), mesmo com o fetchedAt bem mais tarde', () => {
+    // Bug real: uma apuração já encerrada ainda é reemitida de tempos em
+    // tempos pelo TSE (mesmo conteúdo, só o `dg`/`hg` de geração do arquivo
+    // mudando — ver tseDataProvider.ts). Antes, qualquer `fetchedAt` novo
+    // além do intervalo mínimo virava um ponto novo no histórico, criando um
+    // "gráfico" de evolução falso — pontos idênticos espaçados no tempo,
+    // parecendo uma apuração ativa quando na verdade terminou há muito.
+    const app = new AppContext();
+    app.state.dataMode = 'tse';
+    const T0 = 1_700_000_000_000;
+    const TEN_MIN = 10 * 60 * 1000;
+    app.tseProvider = sequencedProvider([
+      { fetchedAt: T0, candidates: [fakeCandidate('a', 'Candidato A', 40)] },
+      { fetchedAt: T0 + TEN_MIN, candidates: [fakeCandidate('a', 'Candidato A', 40)] },
+      { fetchedAt: T0 + 2 * TEN_MIN, candidates: [fakeCandidate('a', 'Candidato A', 40)] },
+    ]);
+    app.getOfficeResults('presidente', null, 1);
+    app.getOfficeResults('presidente', null, 1);
+    app.getOfficeResults('presidente', null, 1);
+    expect(app.getResultsHistory('presidente', null, 1)).toHaveLength(1);
+  });
+
+  it('registra um ponto novo quando o percentual muda de verdade, mesmo que só um pouco', () => {
+    const app = new AppContext();
+    app.state.dataMode = 'tse';
+    const T0 = 1_700_000_000_000;
+    const TEN_MIN = 10 * 60 * 1000;
+    app.tseProvider = sequencedProvider([
+      { fetchedAt: T0, candidates: [fakeCandidate('a', 'Candidato A', 40)] },
+      { fetchedAt: T0 + TEN_MIN, candidates: [fakeCandidate('a', 'Candidato A', 40.01)] },
+    ]);
+    app.getOfficeResults('presidente', null, 1);
+    app.getOfficeResults('presidente', null, 1);
+    expect(app.getResultsHistory('presidente', null, 1)).toHaveLength(2);
   });
 
   it('não registra um ponto novo antes do intervalo mínimo (1 min) — eixo X mais largo que minuto a minuto', () => {

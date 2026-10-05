@@ -188,6 +188,79 @@ describe('AppContext.getOfficeResults — "eleito matematicamente" (applyElectio
   });
 });
 
+describe('AppContext.getOfficeResults — "confirmado para o 2º turno" (confirmedRunoff) no modo TSE', () => {
+  it('Presidente 1º turno: marca confirmedRunoff pros 2 primeiros quando a vaga está garantida, mesmo sem ninguém com maioria absoluta ainda', () => {
+    const app = new AppContext();
+    // 40/35/10, 15 restantes no pior caso: líder não passa de 50% do total
+    // final possível (100) — ninguém "eleito" ainda. Mas nem o 3º colocado
+    // (10 + 15 = 25) alcança o 2º (35) — os 2 primeiros já estão garantidos
+    // entre os 2 primeiros colocados, independente de quem vencer no fim.
+    app.tseProvider = fakeTseProviderFor(
+      'presidente',
+      [
+        fakeCandidate({ id: '1', votes: 40, position: 1 }),
+        fakeCandidate({ id: '2', votes: 35, position: 2 }),
+        fakeCandidate({ id: '3', votes: 10, position: 3 }),
+      ],
+      { electorateTotal: 100, electorateAccountedFor: 85, totalValid: 85 },
+    );
+    app.state.dataMode = 'tse';
+
+    const results = app.getOfficeResults('presidente', null, 1);
+    expect(results.candidates.every((c) => !c.elected)).toBe(true);
+    expect(results.candidates.find((c) => c.id === '1')?.confirmedRunoff).toBe(true);
+    expect(results.candidates.find((c) => c.id === '2')?.confirmedRunoff).toBe(true);
+    expect(results.candidates.find((c) => c.id === '3')?.confirmedRunoff).toBeUndefined();
+  });
+
+  it('Presidente 1º turno: NÃO marca confirmedRunoff quando alguém já tem maioria absoluta garantida — não vai haver 2º turno', () => {
+    const app = new AppContext();
+    // Mesmo cenário do teste de "elected" acima (70/30, só 10 restantes) —
+    // a corrida já se decide no 1º turno, então "confirmado pro 2º turno"
+    // não faz sentido pra ninguém aqui.
+    app.tseProvider = fakeTseProviderFor(
+      'presidente',
+      [fakeCandidate({ id: '1', votes: 70, position: 1 }), fakeCandidate({ id: '2', votes: 30, position: 2 })],
+      { electorateTotal: 110, electorateAccountedFor: 100, totalValid: 100 },
+    );
+    app.state.dataMode = 'tse';
+
+    const results = app.getOfficeResults('presidente', null, 1);
+    expect(results.candidates.find((c) => c.id === '1')?.elected).toBe(true);
+    expect(results.candidates.every((c) => !c.confirmedRunoff)).toBe(true);
+  });
+
+  it('Presidente 2º turno: nunca marca confirmedRunoff (só faz sentido no 1º turno, antes de saber quem avança)', () => {
+    const app = new AppContext();
+    app.tseProvider = fakeTseProviderFor(
+      'governador',
+      [fakeCandidate({ id: '1', votes: 50, position: 1 }), fakeCandidate({ id: '2', votes: 30, position: 2 })],
+      { electorateTotal: 95, electorateAccountedFor: 80, totalValid: 80 },
+    );
+    app.state.dataMode = 'tse';
+
+    const results = app.getOfficeResults('governador', 'SP', 2);
+    expect(results.candidates.every((c) => !c.confirmedRunoff)).toBe(true);
+  });
+
+  it('Senador: nunca marca confirmedRunoff (não tem 2º turno)', () => {
+    const app = new AppContext();
+    app.tseProvider = fakeTseProviderFor(
+      'senador',
+      [
+        fakeCandidate({ id: '1', votes: 50, position: 1 }),
+        fakeCandidate({ id: '2', votes: 30, position: 2 }),
+        fakeCandidate({ id: '3', votes: 5, position: 3 }),
+      ],
+      { electorateTotal: 90, electorateAccountedFor: 85, totalValid: 85 },
+    );
+    app.state.dataMode = 'tse';
+
+    const results = app.getOfficeResults('senador', 'SP', 1);
+    expect(results.candidates.every((c) => !c.confirmedRunoff)).toBe(true);
+  });
+});
+
 describe('AppContext.getOfficeResults — base do percentual (voteBasis) no modo TSE', () => {
   it('calcula o percentual sobre votos válidos por padrão', () => {
     const app = new AppContext();
