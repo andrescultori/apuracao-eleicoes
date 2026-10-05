@@ -4,7 +4,7 @@ import type { CandidateResult, OfficeKey, ProviderStatus } from '../data/types';
 import type { AppContext } from '../state/appContext';
 import { BrazilMap, supportsMap } from './brazilMap';
 import { CandidateTable } from './candidateTable';
-import { EvolutionChart, VoteChart } from './charts';
+import { VoteChart } from './charts';
 import { ElectedSection, RunoffSection } from './electedSection';
 import { FavoritesSection } from './favorites';
 import { FilterBar } from './filterBar';
@@ -78,7 +78,13 @@ export function OfficePage(app: AppContext, office: OfficeKey): string {
     `<div><div class="section-head"><h2>Resultados — ${cfg.label}${uf ? ' · ' + uf : ' · Brasil'}</h2><span class="muted">ordenado por votos</span></div>` +
     CandidateTable(app, office, app.state.turn, uf, results, prevById) +
     '</div>' +
-    EvolutionChart(app, office, app.state.turn, uf) +
+    // Escondido por decisão explícita (05/10/2026): sem infraestrutura rodando
+    // continuamente no servidor durante a apuração (ver discussão sobre
+    // histórico de evolução), o card só reflete o que o navegador de quem
+    // está olhando observou — para o 1º turno já encerrado, isso nunca vai
+    // ser mais que "sem evolução pra mostrar". Volta a aparecer pro 2º turno,
+    // quando a apuração estiver ativa de novo. `EvolutionChart` (charts.ts)
+    // continua implementada e testada — só tirada da página, não do código.
     (supportsMap(office)
       ? '<div class="map-row">' +
         SectionsByStateCard(app, office, app.state.turn) +
