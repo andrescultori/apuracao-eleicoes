@@ -74,11 +74,16 @@ function fakeTseProviderFor(
   };
 }
 
-describe('AppContext.getOfficeResults — "eleito matematicamente" (applyElectionCertainty) no modo TSE', () => {
-  it('marca elected:true para o líder de Presidente no 1º turno quando a margem supera o teto de votos restantes', () => {
+describe('AppContext.getOfficeResults — "eleito matematicamente"/"confirmado pro 2º turno" DESLIGADOS (applyElectionCertainty)', () => {
+  // Caso real (05/10/2026) que forçou o desligamento: Governador/RJ, o app
+  // marcava "Eleito matematicamente" com 50,88% — o resultado OFICIAL final
+  // ficou em 49,27%, foi pra 2º turno. O teto de votos restantes
+  // (electorateTotal/electorateAccountedFor, do EA14) não é confiável contra
+  // o ambiente oficial (ver nota em `applyElectionCertainty`). Estes testes
+  // reusam cenários que ANTES marcavam elected/confirmedRunoff — servem de
+  // proteção contra religar isso sem querer num refactor futuro.
+  it('nunca marca elected, mesmo num cenário que folgadamente "venceria" pela conta antiga (70 de 100, só 10 restantes)', () => {
     const app = new AppContext();
-    // líder 70 de 100 válidos; eleitorado total 110, contabilizado 100 — só
-    // 10 votos restantes no pior caso. 70 > 55 (metade de 110) ✓.
     app.tseProvider = fakeTseProviderFor(
       'presidente',
       [fakeCandidate({ id: '1', votes: 70, position: 1 }), fakeCandidate({ id: '2', votes: 30, position: 2 })],
@@ -87,29 +92,11 @@ describe('AppContext.getOfficeResults — "eleito matematicamente" (applyElectio
     app.state.dataMode = 'tse';
 
     const results = app.getOfficeResults('presidente', null, 1);
-    expect(results.candidates.find((c) => c.id === '1')?.elected).toBe(true);
-    expect(results.candidates.find((c) => c.id === '2')?.elected).toBeUndefined();
-  });
-
-  it('não marca ninguém quando a margem não é suficiente para garantir a vitória', () => {
-    const app = new AppContext();
-    // líder 51 de 100, eleitorado total 120 (20 restantes) — 51 não é mais que 60.
-    app.tseProvider = fakeTseProviderFor(
-      'presidente',
-      [fakeCandidate({ id: '1', votes: 51, position: 1 }), fakeCandidate({ id: '2', votes: 49, position: 2 })],
-      { electorateTotal: 120, electorateAccountedFor: 100, totalValid: 100 },
-    );
-    app.state.dataMode = 'tse';
-
-    const results = app.getOfficeResults('presidente', null, 1);
     expect(results.candidates.every((c) => !c.elected)).toBe(true);
   });
 
-  it('Senador: marca os 2 primeiros colocados (2 vagas em disputa) quando a margem é suficiente para ambos', () => {
+  it('Senador: nunca marca elected, mesmo num cenário que folgadamente garantiria os 2 primeiros pela conta antiga', () => {
     const app = new AppContext();
-    // 3 candidatos, 2 vagas: 50/30/5, 5 restantes no pior caso — mesmo que
-    // os 5 restantes fossem todos do 3º colocado (5+5=10), ele não
-    // alcançaria nem o 2º colocado (30).
     app.tseProvider = fakeTseProviderFor(
       'senador',
       [
@@ -122,32 +109,23 @@ describe('AppContext.getOfficeResults — "eleito matematicamente" (applyElectio
     app.state.dataMode = 'tse';
 
     const results = app.getOfficeResults('senador', 'SP', 1);
-    expect(results.candidates.find((c) => c.id === '1')?.elected).toBe(true);
-    expect(results.candidates.find((c) => c.id === '2')?.elected).toBe(true);
-    expect(results.candidates.find((c) => c.id === '3')?.elected).toBeUndefined();
+    expect(results.candidates.every((c) => !c.elected)).toBe(true);
   });
 
-  it('Senador: não marca o 2º colocado quando o 3º ainda pode empatar com ele no pior caso', () => {
+  it('2º turno: nunca marca elected, mesmo num cenário que folgadamente decidiria pela conta antiga (maioria simples)', () => {
     const app = new AppContext();
-    // 50/30/20, 10 restantes: no pior caso o 3º chegaria a 30 (empate com o
-    // 2º) — a vitória do 2º lugar não está garantida ainda.
     app.tseProvider = fakeTseProviderFor(
-      'senador',
-      [
-        fakeCandidate({ id: '1', votes: 50, position: 1 }),
-        fakeCandidate({ id: '2', votes: 30, position: 2 }),
-        fakeCandidate({ id: '3', votes: 20, position: 3 }),
-      ],
-      { electorateTotal: 110, electorateAccountedFor: 100, totalValid: 100 },
+      'governador',
+      [fakeCandidate({ id: '1', votes: 50, position: 1 }), fakeCandidate({ id: '2', votes: 30, position: 2 })],
+      { electorateTotal: 95, electorateAccountedFor: 80, totalValid: 80 },
     );
     app.state.dataMode = 'tse';
 
-    const results = app.getOfficeResults('senador', 'SP', 1);
-    expect(results.candidates.find((c) => c.id === '1')?.elected).toBe(true);
-    expect(results.candidates.find((c) => c.id === '2')?.elected).toBeUndefined();
+    const results = app.getOfficeResults('governador', 'SP', 2);
+    expect(results.candidates.every((c) => !c.elected)).toBe(true);
   });
 
-  it('Deputado Federal (proporcional, falta o nº de vagas por UF): nunca marca ninguém, mesmo com margem suficiente', () => {
+  it('Deputado Federal: nunca marca elected (já era assim, segue assim)', () => {
     const app = new AppContext();
     app.tseProvider = fakeTseProviderFor(
       'deputadoFederal',
@@ -160,41 +138,8 @@ describe('AppContext.getOfficeResults — "eleito matematicamente" (applyElectio
     expect(results.candidates.every((c) => !c.elected)).toBe(true);
   });
 
-  it('não marca ninguém quando o acompanhamento ainda não trouxe eleitorado (electorateTotal/electorateAccountedFor ausentes)', () => {
+  it('Presidente 1º turno: nunca marca confirmedRunoff, mesmo num cenário que folgadamente garantiria a vaga pela conta antiga', () => {
     const app = new AppContext();
-    app.tseProvider = fakeTseProviderFor('presidente', [
-      fakeCandidate({ id: '1', votes: 90, position: 1 }),
-      fakeCandidate({ id: '2', votes: 10, position: 2 }),
-    ]);
-    app.state.dataMode = 'tse';
-
-    const results = app.getOfficeResults('presidente', null, 1);
-    expect(results.candidates.every((c) => !c.elected)).toBe(true);
-  });
-
-  it('usa a regra de maioria simples (não absoluta) no 2º turno', () => {
-    const app = new AppContext();
-    // 2º turno: líder 50, segundo 30, 15 restantes — margem (20) > restantes
-    // (15), decidido mesmo sem ultrapassar 50% do total final possível.
-    app.tseProvider = fakeTseProviderFor(
-      'governador',
-      [fakeCandidate({ id: '1', votes: 50, position: 1 }), fakeCandidate({ id: '2', votes: 30, position: 2 })],
-      { electorateTotal: 95, electorateAccountedFor: 80, totalValid: 80 },
-    );
-    app.state.dataMode = 'tse';
-
-    const results = app.getOfficeResults('governador', 'SP', 2);
-    expect(results.candidates.find((c) => c.id === '1')?.elected).toBe(true);
-  });
-});
-
-describe('AppContext.getOfficeResults — "confirmado para o 2º turno" (confirmedRunoff) no modo TSE', () => {
-  it('Presidente 1º turno: marca confirmedRunoff pros 2 primeiros quando a vaga está garantida, mesmo sem ninguém com maioria absoluta ainda', () => {
-    const app = new AppContext();
-    // 40/35/10, 15 restantes no pior caso: líder não passa de 50% do total
-    // final possível (100) — ninguém "eleito" ainda. Mas nem o 3º colocado
-    // (10 + 15 = 25) alcança o 2º (35) — os 2 primeiros já estão garantidos
-    // entre os 2 primeiros colocados, independente de quem vencer no fim.
     app.tseProvider = fakeTseProviderFor(
       'presidente',
       [
@@ -207,57 +152,7 @@ describe('AppContext.getOfficeResults — "confirmado para o 2º turno" (confirm
     app.state.dataMode = 'tse';
 
     const results = app.getOfficeResults('presidente', null, 1);
-    expect(results.candidates.every((c) => !c.elected)).toBe(true);
-    expect(results.candidates.find((c) => c.id === '1')?.confirmedRunoff).toBe(true);
-    expect(results.candidates.find((c) => c.id === '2')?.confirmedRunoff).toBe(true);
-    expect(results.candidates.find((c) => c.id === '3')?.confirmedRunoff).toBeUndefined();
-  });
-
-  it('Presidente 1º turno: NÃO marca confirmedRunoff quando alguém já tem maioria absoluta garantida — não vai haver 2º turno', () => {
-    const app = new AppContext();
-    // Mesmo cenário do teste de "elected" acima (70/30, só 10 restantes) —
-    // a corrida já se decide no 1º turno, então "confirmado pro 2º turno"
-    // não faz sentido pra ninguém aqui.
-    app.tseProvider = fakeTseProviderFor(
-      'presidente',
-      [fakeCandidate({ id: '1', votes: 70, position: 1 }), fakeCandidate({ id: '2', votes: 30, position: 2 })],
-      { electorateTotal: 110, electorateAccountedFor: 100, totalValid: 100 },
-    );
-    app.state.dataMode = 'tse';
-
-    const results = app.getOfficeResults('presidente', null, 1);
-    expect(results.candidates.find((c) => c.id === '1')?.elected).toBe(true);
-    expect(results.candidates.every((c) => !c.confirmedRunoff)).toBe(true);
-  });
-
-  it('Presidente 2º turno: nunca marca confirmedRunoff (só faz sentido no 1º turno, antes de saber quem avança)', () => {
-    const app = new AppContext();
-    app.tseProvider = fakeTseProviderFor(
-      'governador',
-      [fakeCandidate({ id: '1', votes: 50, position: 1 }), fakeCandidate({ id: '2', votes: 30, position: 2 })],
-      { electorateTotal: 95, electorateAccountedFor: 80, totalValid: 80 },
-    );
-    app.state.dataMode = 'tse';
-
-    const results = app.getOfficeResults('governador', 'SP', 2);
-    expect(results.candidates.every((c) => !c.confirmedRunoff)).toBe(true);
-  });
-
-  it('Senador: nunca marca confirmedRunoff (não tem 2º turno)', () => {
-    const app = new AppContext();
-    app.tseProvider = fakeTseProviderFor(
-      'senador',
-      [
-        fakeCandidate({ id: '1', votes: 50, position: 1 }),
-        fakeCandidate({ id: '2', votes: 30, position: 2 }),
-        fakeCandidate({ id: '3', votes: 5, position: 3 }),
-      ],
-      { electorateTotal: 90, electorateAccountedFor: 85, totalValid: 85 },
-    );
-    app.state.dataMode = 'tse';
-
-    const results = app.getOfficeResults('senador', 'SP', 1);
-    expect(results.candidates.every((c) => !c.confirmedRunoff)).toBe(true);
+    expect(results.candidates.every((c) => !c.elected && !c.confirmedRunoff)).toBe(true);
   });
 });
 
