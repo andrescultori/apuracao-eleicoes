@@ -472,51 +472,50 @@ select.ui,
   flex: 1 1 auto;
 }
 
-/* summary cards */
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-@media (max-width: 760px) {
-  .summary-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-@media (max-width: 480px) {
-  .summary-grid {
-    grid-template-columns: 1fr;
-  }
-}
-.card {
+/* card de apuração — seções totalizadas + votos apurados/válidos + barra de
+   distribuição por candidato, tudo num card só (ver summaryCards.ts) */
+.apuracao-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 14px 15px;
+  padding: 16px;
   box-shadow: var(--shadow);
 }
-.card .label {
+.apuracao-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.apuracao-head .label {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-3);
 }
-.card .value {
+.apuracao-head .value {
   font-size: 24px;
   font-weight: 800;
   letter-spacing: -0.02em;
   margin-top: 5px;
 }
-.card .value small {
+.apuracao-head .value small {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-2);
 }
-.card .hint {
+.apuracao-hint {
+  text-align: right;
   font-size: 11.5px;
   color: var(--text-3);
-  margin-top: 2px;
+  line-height: 1.6;
+}
+@media (max-width: 480px) {
+  .apuracao-hint {
+    text-align: left;
+  }
 }
 .progress-track {
   height: 5px;
@@ -530,6 +529,21 @@ select.ui,
   background: var(--accent);
   border-radius: 99px;
   transition: width 0.4s ease;
+}
+.vote-share-caption {
+  font-size: 11px;
+  margin-top: 12px;
+}
+.vote-share-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: var(--surface-2);
+  margin-top: 4px;
+}
+.vote-share-seg {
+  height: 100%;
 }
 
 /* update control row */
@@ -1074,15 +1088,21 @@ table.results tbody tr:hover {
     display: none;
   }
   /* Agrupa os campos em 3 linhas em vez de 1 por linha — Pos. + Nome juntos
-     primeiro, depois Nº + Partido, depois Votos + % — via flex-wrap com
-     `order` explícito (a ordem no DOM/tabela continua Pos., Candidato, Nº,
-     Partido, Votos, %, como faz sentido numa tabela ordenada; só a ordem
-     visual é controlada aqui). Cada td mantém seu rótulo (::before) e, como
-     ainda é um flex item internamente, o rótulo e o valor ficam lado a lado
-     dentro do espaço que lhe cabe na linha. */
+     primeiro, depois Nº + Partido, depois Votos + % — via `grid-template-areas`
+     com 4 colunas fixas (não por `flex-wrap`/`order`, como era antes: com
+     flex-wrap, a quebra de linha depende da largura do conteúdo, então um
+     nome curto deixava "Nº" caber ainda na 1ª linha, enquanto um nome longo
+     empurrava "Nº" pra 2ª — o layout ficava diferente de card pra card, só
+     por causa do tamanho do nome, que foi reportado como bug. Com áreas de
+     grid fixas, cada campo sempre cai na mesma linha/coluna, não importa o
+     tamanho do conteúdo). */
   table.results tr {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-areas:
+      'pos cand cand cand'
+      'num num party party'
+      'votes votes pct pct';
     column-gap: 10px;
     row-gap: 6px;
     border-bottom: 1px solid var(--border);
@@ -1113,8 +1133,7 @@ table.results tbody tr:hover {
   }
   /* 1ª linha: posição (largura do próprio conteúdo) + nome (ocupa o resto). */
   table.results td[data-label='Pos.'] {
-    order: 1;
-    flex: 0 0 auto;
+    grid-area: pos;
   }
   /* A célula do candidato não é um par "rótulo: valor" como as outras (por
      isso o ::before acima é removido) — a regra genérica de td acima
@@ -1122,8 +1141,7 @@ table.results tbody tr:hover {
      esquerda e o nome pra direita, quebrando os dois em linhas separadas
      quando o nome é longo. Aqui eles só precisam fluir juntos, grudados. */
   table.results td.cand-cell {
-    order: 2;
-    flex: 1 1 auto;
+    grid-area: cand;
     min-width: 0;
     justify-content: flex-start;
     align-items: flex-start;
@@ -1138,20 +1156,16 @@ table.results tbody tr:hover {
   }
   /* 2ª linha: nº + partido lado a lado. 3ª linha: votos + % lado a lado. */
   table.results td[data-label='Nº'] {
-    order: 3;
-    flex: 1 1 calc(50% - 5px);
+    grid-area: num;
   }
   table.results td[data-label='Partido'] {
-    order: 4;
-    flex: 1 1 calc(50% - 5px);
+    grid-area: party;
   }
   table.results td[data-label='Votos'] {
-    order: 5;
-    flex: 1 1 calc(50% - 5px);
+    grid-area: votes;
   }
   table.results td[data-label='%'] {
-    order: 6;
-    flex: 1 1 calc(50% - 5px);
+    grid-area: pct;
   }
   .table-scroll {
     overflow-x: visible;

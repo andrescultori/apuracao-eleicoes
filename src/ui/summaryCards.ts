@@ -1,9 +1,41 @@
+import { partyFillColor } from '../data/partyColors';
 import type { ElectionResults } from '../data/types';
 import type { AppContext } from '../state/appContext';
 import { timeAgoLabel } from '../state/appContext';
 import { statusForT } from '../data/mockDataProvider';
-import { clamp, fmtInt, fmtPct } from '../util';
+import { clamp, esc, fmtInt, fmtPct } from '../util';
 import { ICONS } from './icons';
+
+/**
+ * Barra única, dividida por candidato (cor de `partyFillColor`, mesma
+ * aproximação visual usada no mapa e no card de confronto direto — nunca uma
+ * cor oficial de partido), mostrando a distribuição parcial dos votos dentro
+ * do card de apuração — até os 8 primeiros, mesmo corte usado em
+ * `VoteChart`, pra não lotar uma barra fina de segmentos ilegíveis quando há
+ * dezenas de candidatos (Dep. Federal/Estadual).
+ */
+function VoteShareBar(results: ElectionResults): string {
+  if (!results.candidates.length) return '';
+  const top = results.candidates
+    .slice()
+    .sort((a, b) => b.votes - a.votes)
+    .slice(0, 8);
+  const segs = top
+    .map((c) => {
+      const w = clamp(c.percentage, 0, 100);
+      if (w <= 0) return '';
+      return (
+        `<div class="vote-share-seg" style="width:${w.toFixed(2)}%;background:${partyFillColor(c.party, true)}" ` +
+        `title="${esc(c.ballotName)} — ${fmtPct(c.percentage)}%"></div>`
+      );
+    })
+    .join('');
+  if (!segs) return '';
+  return (
+    '<div class="vote-share-caption muted">Distribuição parcial dos votos</div>' +
+    `<div class="vote-share-bar">${segs}</div>`
+  );
+}
 
 export function SummaryCards(results: ElectionResults, sectionsPercent: number | null): string {
   // Mostra a contagem bruta (X de Y seções) junto do percentual sempre que
@@ -12,18 +44,25 @@ export function SummaryCards(results: ElectionResults, sectionsPercent: number |
   // percentual por si só parecer divergente.
   const rawCounts =
     results.sectionsTotal !== undefined && results.sectionsCounted !== undefined
-      ? `<div class="hint">${fmtInt(results.sectionsCounted)} de ${fmtInt(results.sectionsTotal)} seções</div>`
+      ? `<div>${fmtInt(results.sectionsCounted)} de ${fmtInt(results.sectionsTotal)} seções</div>`
       : '';
+  // Um card só (em vez dos 3 antigos: "Seções totalizadas", "Votos
+  // apurados" e "Votos válidos" separados) — os votos válidos só fazem
+  // sentido já contextualizados pelo total apurado, daí "X de Y votos
+  // apurados" em vez de dois números soltos em cards diferentes.
+  const votesLine = `<div>${fmtInt(results.totalValid)} de ${fmtInt(results.totalApurados)} votos apurados</div>`;
   return (
-    '<div class="summary-grid">' +
-    '<div class="card"><div class="label">Seções totalizadas</div>' +
+    '<div class="apuracao-card">' +
+    '<div class="apuracao-head">' +
+    '<div><div class="label">Seções totalizadas</div>' +
     (sectionsPercent === null
       ? '<div class="value num">—</div>'
       : `<div class="value num">${fmtPct(sectionsPercent)}<small>%</small></div>`) +
-    rawCounts +
-    `<div class="progress-track"><div class="progress-fill" style="width:${sectionsPercent === null ? 0 : clamp(sectionsPercent, 0, 100)}%"></div></div></div>` +
-    `<div class="card"><div class="label">Votos apurados</div><div class="value num">${fmtInt(results.totalApurados)}</div></div>` +
-    `<div class="card"><div class="label">Votos válidos</div><div class="value num">${fmtInt(results.totalValid)}</div></div>` +
+    '</div>' +
+    `<div class="apuracao-hint">${rawCounts}${votesLine}</div>` +
+    '</div>' +
+    `<div class="progress-track"><div class="progress-fill" style="width:${sectionsPercent === null ? 0 : clamp(sectionsPercent, 0, 100)}%"></div></div>` +
+    VoteShareBar(results) +
     '</div>'
   );
 }
