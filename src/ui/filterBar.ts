@@ -4,13 +4,30 @@ import type { AppContext } from '../state/appContext';
 import { esc } from '../util';
 import { ICONS } from './icons';
 
-function nationalScopeTag(app: AppContext, office: OfficeKey): string {
-  const uf = app.officeUf(office);
-  if (!uf) return '<div class="status-tag" style="padding:8px 12px;">Brasil</div>';
+/**
+ * Campo "Abrangência" de cargos nacionais (Presidente) — mesmo visual do
+ * seletor de estado (`UfPickerField`), com "Brasil" como 1ª opção pra voltar
+ * à visão nacional. Reaproveita `app.state.ufPickerOpen` (o mesmo estado
+ * usado por `UfPickerField`) — sem conflito, porque uma página de cargo só
+ * renderiza um dos dois campos por vez (nunca os dois juntos).
+ */
+function NationalScopeField(app: AppContext, office: OfficeKey): string {
+  const open = app.state.ufPickerOpen;
+  const current = app.officeUf(office);
+  const options =
+    `<button type="button" class="uf-opt ${!current ? 'active' : ''}" role="option" ` +
+    `aria-selected="${!current}" data-action="clear-map-uf">Brasil</button>` +
+    UFS.map(
+      (u) =>
+        `<button type="button" class="uf-opt ${current === u.sigla ? 'active' : ''}" role="option" ` +
+        `aria-selected="${current === u.sigla}" data-action="set-map-uf" data-office="${office}" data-value="${u.sigla}" title="${esc(u.nome)}">${u.sigla}</button>`,
+    ).join('');
   return (
-    `<div class="status-tag" style="padding:8px 12px;">${esc(uf)} ` +
-    `<button type="button" class="btn" style="padding:2px 8px;margin-left:6px;" ` +
-    `data-action="set-map-uf" data-office="${office}" data-value="${esc(uf)}">ver Brasil</button></div>`
+    '<div class="field uf-picker"><label id="lbl-abrangencia">Abrangência</label>' +
+    `<button type="button" class="uf-trigger" data-action="toggle-uf-picker" aria-haspopup="listbox" aria-expanded="${open}" aria-labelledby="lbl-abrangencia">` +
+    `<span>${esc(current ?? 'Brasil')}</span>${ICONS.chevronDown}</button>` +
+    (open ? `<div class="uf-panel" role="listbox" aria-label="Selecionar abrangência">${options}</div>` : '') +
+    '</div>'
   );
 }
 
@@ -47,9 +64,7 @@ export function FilterBar(app: AppContext, office: OfficeKey, opts: FilterBarOpt
     `<button aria-pressed="${app.state.turn === 2}" data-action="set-turn" data-value="2">2º Turno</button>` +
     '</div></div>';
 
-  const ufField = showUf
-    ? UfPickerField(app)
-    : `<div class="field"><label>Abrangência</label>${nationalScopeTag(app, office)}</div>`;
+  const ufField = showUf ? UfPickerField(app) : NationalScopeField(app, office);
 
   const searchField = showSearch
     ? '<div class="field grow"><label for="cand-search">Pesquisar candidato</label>' +

@@ -150,11 +150,19 @@ export function setupEvents(app: AppContext, root: HTMLElement): void {
         } else {
           app.state.uf = value;
         }
+        app.state.ufPickerOpen = false;
         app.state.candidatePage = 1;
         syncUrl();
         app.persist();
         return;
       }
+      case 'clear-map-uf':
+        app.state.nationalUfFilter = null;
+        app.state.ufPickerOpen = false;
+        app.state.candidatePage = 1;
+        syncUrl();
+        app.persist();
+        return;
       case 'set-candidate-page':
         app.state.candidatePage = Number(el.getAttribute('data-value'));
         app.update();
