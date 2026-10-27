@@ -8,6 +8,7 @@ import { VoteChart } from './charts';
 import { ElectedSection, RunoffSection } from './electedSection';
 import { FavoritesSection } from './favorites';
 import { FilterBar } from './filterBar';
+import { HeadToHeadBar } from './headToHead';
 import { SectionsByStateCard } from './sectionsByState';
 import { SummaryCards, UpdateRow } from './summaryCards';
 
@@ -69,6 +70,7 @@ export function OfficePage(app: AppContext, office: OfficeKey): string {
   return (
     '<div class="stack">' +
     FilterBar(app, office) +
+    HeadToHeadBar(results) +
     ElectedSection(app, office, app.state.turn, uf, results) +
     RunoffSection(app, office, app.state.turn, uf, results) +
     SummaryCards(results, sectionsPercent) +

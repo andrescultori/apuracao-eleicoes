@@ -703,6 +703,98 @@ select.ui,
   padding: 0;
 }
 
+/* card de confronto direto — 2 candidatos (ver headToHead.ts) */
+.h2h-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.h2h-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+.h2h-cand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 0;
+}
+.h2h-right {
+  align-items: flex-end;
+  text-align: right;
+}
+.h2h-name {
+  font-weight: 800;
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.h2h-meta {
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+.h2h-pct {
+  font-size: 23px;
+  font-weight: 800;
+  margin-top: 3px;
+}
+.h2h-votes {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.h2h-track {
+  position: relative;
+  padding-top: 10px;
+}
+.h2h-segs {
+  display: flex;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.h2h-seg {
+  height: 100%;
+  transition: width 0.4s ease;
+}
+.h2h-center-line {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  bottom: 0;
+  width: 2px;
+  background: var(--text);
+  opacity: 0.8;
+  transform: translateX(-50%);
+}
+.h2h-center-badge {
+  position: absolute;
+  left: 50%;
+  top: -1px;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.h2h-diff {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 12.5px;
+}
+
 /* seções de "Eleitos" e "Confirmados pro 2º turno" (ver electedSection.ts) */
 .elected-grid {
   display: grid;
